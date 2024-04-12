@@ -7,7 +7,7 @@ name =  "pyBlindRL"
 authors = [
     {name = "Logan Walker, PhD", email = "loganaw@umich.edu"},
 ]
-description = "Sample Python Project for creating a new Python Module"
+description = "A Python implementation of blind Richardson-Lucy deconvolution"
 readme = "README.md"
 classifiers = [
     "Development Status :: 3 - Alpha",
