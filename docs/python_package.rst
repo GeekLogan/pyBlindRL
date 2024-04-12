@@ -12,7 +12,7 @@ Subpackages
 Submodules
 ----------
 
-python\_package.setup module
+pyBlindRL.setup module
 ----------------------------
 
 .. automodule:: pyBlindRL.setup
