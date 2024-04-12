@@ -20,7 +20,8 @@ classifiers = [
 requires-python = ">=3.10"
 dynamic = ["version"]
 dependencies = [
-    "torch"
+    "torch",
+    "numpy"
 ]
 
 [project.optional-dependencies]
