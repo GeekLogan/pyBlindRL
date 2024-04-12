@@ -19,6 +19,9 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dynamic = ["version"]
+install_requires = [
+    "torch"
+]
 
 [project.optional-dependencies]
 spark = [
