@@ -5,6 +5,9 @@
 """A Python implementation of blind Richardson-Lucy deconvolution"""
 from __future__ import annotations
 
+import numpy as np
+import torch
+
 __version__ = "0.0.2"
 
 
