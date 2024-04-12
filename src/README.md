@@ -1,1 +1,1 @@
-This directoy stores each Python Package.
+# Python Blind Richardson-Lucy Deconvolution
