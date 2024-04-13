@@ -38,25 +38,23 @@ def gaussian_3d(shape, center=None, sigma=None):
 
     return gaussian_array
 
-'''
-otf = np.zeros_like(img, dtype=np.complex128)
-otf = np.ones_like(img, dtype=np.complex128)
 
-otf[
-    int(img.shape[0] / 2 - psf.shape[0] / 2) :,
-    int(img.shape[1] / 2 - psf.shape[1] / 2) :,
-    int(img.shape[2] / 2 - psf.shape[2] / 2) :,
-][: psf.shape[0], : psf.shape[1], : psf.shape[2]] += psf
+def generate_initial_psf(img):
+    out = np.zeros_like(img, dtype=np.complex128)
+    out += 1
 
-otf += 1e-8
+    psf = gaussian_3d(shape, sigma=(1, 1, 2))
 
-print(otf.min(), otf.max())
+    otf[
+        int(img.shape[0] / 2 - psf.shape[0] / 2) :,
+        int(img.shape[1] / 2 - psf.shape[1] / 2) :,
+        int(img.shape[2] / 2 - psf.shape[2] / 2) :,
+    ][: psf.shape[0], : psf.shape[1], : psf.shape[2]] += psf
 
-for axis, axis_size in enumerate(img.shape):
-    otf = np.roll(otf, -int(axis_size / 2), axis=axis)
+    for axis, axis_size in enumerate(img.shape):
+        otf = np.roll(otf, -int(axis_size / 2), axis=axis)
 
-# otf = np.fft.fftn( otf )
-'''
+    return np.fft.fftn(otf)
 
 
 def RL_deconv(image, otf, iterations, target_device="cpu", eps=1e-10):
