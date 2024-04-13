@@ -38,7 +38,7 @@ def gaussian_3d(shape, center=None, sigma=None):
 
     return gaussian_array
 
-
+'''
 otf = np.zeros_like(img, dtype=np.complex128)
 otf = np.ones_like(img, dtype=np.complex128)
 
@@ -56,6 +56,7 @@ for axis, axis_size in enumerate(img.shape):
     otf = np.roll(otf, -int(axis_size / 2), axis=axis)
 
 # otf = np.fft.fftn( otf )
+'''
 
 
 def RL_deconv(image, otf, iterations, target_device="cpu", eps=1e-10):
