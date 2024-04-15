@@ -5,6 +5,7 @@
 
 import numpy as np
 import torch
+import tqdm
 
 def gaussian_3d(shape, center=None, sigma=None):
     """
@@ -149,7 +150,7 @@ def RL_deconv(image, otf, iterations, target_device="cpu", eps=1e-10, approx=Tru
         return out
 
 
-def RL_deconv_otf(image, psf, iterations, rl_iter=10, target_device="cpu"):
+def RL_deconv_blind(image, psf, iterations, rl_iter=10, target_device="cpu"):
     """
     Perform Blinded RL deconvolution
     """
