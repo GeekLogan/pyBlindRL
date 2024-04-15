@@ -5,7 +5,7 @@
 """This is a sample python file for testing functions from the source code."""
 from __future__ import annotations
 
-from pyBlindRL import *
+from pyBlindRL.commands import *
 
 def test_placeholder() -> None:
     pass

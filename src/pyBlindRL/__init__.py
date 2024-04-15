@@ -9,5 +9,3 @@ import numpy as np
 import torch
 
 __version__ = "0.0.3"
-
-from commands import *
