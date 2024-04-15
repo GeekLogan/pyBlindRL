@@ -44,7 +44,8 @@ def generate_initial_psf(img):
     out = np.zeros_like(img, dtype=np.complex128)
     out += 1
 
-    psf = gaussian_3d(shape, sigma=(1, 1, 2))
+    psf_shape = (64,64,64)
+    psf = gaussian_3d(psf_shape, sigma=(1, 1, 2))
 
     out[
         int(img.shape[0] / 2 - psf.shape[0] / 2) :,
