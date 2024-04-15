@@ -21,7 +21,8 @@ requires-python = ">=3.10"
 dynamic = ["version"]
 dependencies = [
     "torch",
-    "numpy"
+    "numpy",
+    "tqdm"
 ]
 
 [project.optional-dependencies]
