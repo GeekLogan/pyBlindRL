@@ -11,4 +11,4 @@ def test_placeholder() -> None:
     pass
 
 def test_gaussian() -> None:
-    pyBlindRL.gaussian_3d( (100,100,100) )
+    gaussian_3d( (100,100,100) )
