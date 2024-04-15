@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from pyBlindRL.commands import *
 
-def test_placeholder() -> None:
+def test_int_placeholder() -> None:
     pass
 
 def test_gaussian() -> None:

@@ -1,3 +1,10 @@
+#   -------------------------------------------------------------
+#   Copyright (c) Logan Walker. All rights reserved.
+#   Licensed under the MIT License. See LICENSE in project root for information.
+#   -------------------------------------------------------------
+
+import numpy as np
+import torch
 
 def gaussian_3d(shape, center=None, sigma=None):
     """
