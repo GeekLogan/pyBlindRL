@@ -87,7 +87,7 @@ def unroll_psf(img):
 
     return img
 
-def intensity_match_image(img, img_deconv, method="peak")
+def intensity_match_image(img, img_deconv, method="peak"):
     if method == "peak":
         out = np.copy(img_deconv)
 
