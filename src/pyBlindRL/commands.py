@@ -87,6 +87,16 @@ def unroll_psf(img):
 
     return img
 
+def intensity_match_image(img, img_deconv, method="peak")
+    if method == "peak":
+        out = np.copy(img_deconv)
+
+        out /= out.max()
+        out *= img.max()
+
+        return out.astype(np.uint16)
+
+
 
 def RL_deconv(image, otf, iterations, target_device="cpu", eps=1e-10, approx=True):
     """
