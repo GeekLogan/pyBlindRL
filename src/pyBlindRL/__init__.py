@@ -40,24 +40,70 @@ def gaussian_3d(shape, center=None, sigma=None):
 
 
 def generate_initial_psf(img):
+    """
+    Creates a PSF image based on a Gaussian centered on the corners
+
+    Parameters:
+        img (3d numpy array): Image to use as a template
+    """
     out = np.zeros_like(img, dtype=np.complex128)
     out += 1
 
     psf = gaussian_3d(shape, sigma=(1, 1, 2))
 
-    otf[
+    out[
         int(img.shape[0] / 2 - psf.shape[0] / 2) :,
         int(img.shape[1] / 2 - psf.shape[1] / 2) :,
         int(img.shape[2] / 2 - psf.shape[2] / 2) :,
     ][: psf.shape[0], : psf.shape[1], : psf.shape[2]] += psf
 
+    out = roll_psf(out)
+
+    return out
+    # return np.fft.fftn(out)
+
+
+def roll_psf(img):
+    """
+    Roll PSF at center of image to edge of image.
+
+    Parameters:
+        img (3d numpy array): Image to roll
+    """
+
     for axis, axis_size in enumerate(img.shape):
-        otf = np.roll(otf, -int(axis_size / 2), axis=axis)
+        img = np.roll(img, -int(axis_size / 2), axis=axis)
 
-    return np.fft.fftn(otf)
+    return img
 
 
-def RL_deconv(image, otf, iterations, target_device="cpu", eps=1e-10):
+def unroll_psf(img):
+    """
+    Move PSF aligned with corners and roll to center.
+
+    Parameters:
+        img (3d numpy array): Image to unroll
+    """
+
+    for axis, axis_size in enumerate(img.shape):
+        img = np.roll(img, int(axis_size / 2), axis=axis)
+
+    return img
+
+
+def RL_deconv(image, otf, iterations, target_device="cpu", eps=1e-10, approx=True):
+    """
+    Perform unblinded RL deconvolution
+
+    Parameters:
+        img (3d numpy array): Image to deconvolute
+        otf (3d numpy array): OTF to deconvolute with
+        iterations (int): number of iterations to perform
+        target_device (str): torch device to creat output on
+        eps (float): value added to prevent zero-division error
+        approx (bool): flag to enable fast approximation optimizations
+    """
+
     with torch.no_grad():
         out = torch.clone(image).detach().to(target_device)
 
@@ -85,9 +131,11 @@ def RL_deconv(image, otf, iterations, target_device="cpu", eps=1e-10):
         for _ in range(iterations):
             tmp = torch.fft.fftn(out)
 
-            # tmp *= otf
-            for mask in masks:
-                tmp[mask] *= otf[mask]
+            if approx:
+                for mask in masks:
+                    tmp[mask] *= otf[mask]
+            else:
+                tmp *= otf
 
             tmp = torch.fft.ifftn(tmp)
 
@@ -105,10 +153,14 @@ def RL_deconv(image, otf, iterations, target_device="cpu", eps=1e-10):
         return out
 
 
-def RL_deconv_otf(image, otf, iterations, rl_iter=10, target_device="cpu"):
+def RL_deconv_otf(image, psf, iterations, rl_iter=10, target_device="cpu"):
+    """
+    Perform Blinded RL deconvolution
+    """
+
     with torch.no_grad():
         out = torch.clone(image).detach().to(target_device)
-        out_psf = torch.clone(otf).detach().to(target_device)
+        out_psf = torch.clone(psf).detach().to(target_device)
 
         for _bld in tqdm.trange(iterations):
             out = torch.fft.fftn(out)
@@ -141,7 +193,7 @@ def RL_deconv_otf(image, otf, iterations, rl_iter=10, target_device="cpu"):
                 tmp = torch.fft.ifftn(tmp)
 
                 out *= tmp
-                out += 0.01 * image
+                #                out += 0.01 * image
 
                 del tmp
             out_psf = torch.fft.ifftn(out_psf)
