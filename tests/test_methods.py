@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 # from pyBlindRL.hello_world import hello_world
+import pyBlindRL
 
 def test():
     return
