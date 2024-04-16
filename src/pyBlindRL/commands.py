@@ -89,8 +89,9 @@ def unroll_psf(img):
     return img
 
 
-def normalized_psf(psf):
-    out = np.copy(psf)
+def normalize_psf(psf):
+    out = np.zeros(psf.shape, dtype=np.float32)
+    out[...] += psf
     out -= out.min()
     out /= out.max()
     return out
