@@ -116,6 +116,22 @@ def normalize_psf(psf):
     return out
 
 
+def clip_psf(psf, shape=(64, 64, 64)):
+    """
+    Clip out the center of a PSF image (unrolled)
+
+    Parameter:
+        psf (3d numpy array): Input image
+        shape (3-tuple, int): Size to clip
+    """
+
+    out = psf[tuple(slice((a // 2) - (b // 2), None, None) for a, b in zip(psf.shape, shape))][
+        tuple(slice(None, a, None) for a in psf.shape)
+    ]
+
+    return np.copy(out)
+
+
 def intensity_match_image(img, img_deconv, method="peak"):
     """
     Match the intensity of img_deconv to the input image img
