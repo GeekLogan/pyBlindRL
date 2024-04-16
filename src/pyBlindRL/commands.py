@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import tqdm
 
+
 def gaussian_3d(shape, center=None, sigma=None):
     """
     Generate a 3D Gaussian array.
@@ -45,7 +46,7 @@ def generate_initial_psf(img):
     out = np.zeros_like(img, dtype=np.complex128)
     out += 1
 
-    psf_shape = (64,64,64)
+    psf_shape = (64, 64, 64)
     psf = gaussian_3d(psf_shape, sigma=(1, 1, 2))
 
     out[
@@ -87,6 +88,14 @@ def unroll_psf(img):
 
     return img
 
+
+def normalized_psf(psf):
+    out = np.copy(psf)
+    out -= out.min()
+    out /= out.max()
+    return out
+
+
 def intensity_match_image(img, img_deconv, method="peak"):
     if method == "peak":
         out = np.copy(img_deconv)
@@ -95,7 +104,6 @@ def intensity_match_image(img, img_deconv, method="peak"):
         out *= img.max()
 
         return out.astype(np.uint16)
-
 
 
 def RL_deconv(image, otf, iterations, target_device="cpu", eps=1e-10, approx=True):
