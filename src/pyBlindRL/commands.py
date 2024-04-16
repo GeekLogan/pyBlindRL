@@ -126,7 +126,7 @@ def clip_psf(psf, shape=(64, 64, 64)):
     """
 
     out = psf[tuple(slice((a // 2) - (b // 2), None, None) for a, b in zip(psf.shape, shape))][
-        tuple(slice(None, a, None) for a in psf.shape)
+        tuple(slice(None, a, None) for a in shape)
     ]
 
     return np.copy(out)
