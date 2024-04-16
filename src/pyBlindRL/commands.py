@@ -90,6 +90,13 @@ def unroll_psf(img):
 
 
 def normalize_psf(psf):
+    """
+    Renormalized the given PSF function between 0...1
+
+    Parameters:
+        psf (3d numpy array): PSF to normalize
+    """
+
     out = np.zeros(psf.shape, dtype=np.float32)
     out[...] += psf
     out -= out.min()
@@ -98,6 +105,15 @@ def normalize_psf(psf):
 
 
 def intensity_match_image(img, img_deconv, method="peak"):
+    """
+    Match the intensity of img_deconv to the input image img
+
+    Parameters:
+        img (3d numpy array):
+        img_deconv (3d numpy array):
+        method (str): name of the method to use
+    """
+
     if method == "peak":
         out = np.copy(img_deconv)
 
@@ -214,8 +230,8 @@ def RL_deconv_blind(image, psf, iterations, rl_iter=10, target_device="cpu"):
                 del tmp
             out_psf = torch.fft.ifftn(out_psf)
 
-        oout = torch.abs(out).to("cpu").numpy().astype(float)
-        oout_psf = torch.abs(out_psf).to("cpu").numpy().astype(float)
+        oout = torch.abs(out).numpy().astype(float)
+        oout_psf = torch.abs(out_psf).numpy().astype(float)
 
         del out, out_psf
 
