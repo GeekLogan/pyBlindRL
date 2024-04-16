@@ -210,6 +210,7 @@ def RL_deconv(image, otf, iterations, target_device="cpu", eps=1e-10, approx=Tru
 
             out *= tmp
 
+        out = torch.abs(out).numpy().astype(float)
         return out
 
 
