@@ -203,9 +203,11 @@ def RL_deconv(image, otf, iterations, target_device="cpu", eps=1e-10, approx=Tru
             tmp = image / tmp
 
             tmp = torch.fft.fftn(tmp)
-            # tmp *= otf.conj()
-            for mask in masks:
-                tmp[mask] *= otf[mask].conj()
+            if approx:
+                for mask in masks:
+                    tmp[mask] *= otf[mask].conj()
+            else:
+                tmp *= otf.conj()
             tmp = torch.fft.ifftn(tmp)
 
             out *= tmp
