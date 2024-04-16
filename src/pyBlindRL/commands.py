@@ -36,6 +36,25 @@ def gaussian_3d(shape, center=None, sigma=None):
     return gaussian_array
 
 
+def emplace_center(img, img2, dtype=np.complex128):
+    """
+    Place given img2 into the center of a new array given dimensions of img
+
+    Parameters:
+        img (3d numpy array): Image to use as a template
+        img2 (3d numpy array): Image to place
+    """
+    out = np.zeros_like(img, dtype=dtype)
+
+    out[
+        int(img.shape[0] / 2 - img2.shape[0] / 2) :,
+        int(img.shape[1] / 2 - img2.shape[1] / 2) :,
+        int(img.shape[2] / 2 - img2.shape[2] / 2) :,
+    ][: img2.shape[0], : img2.shape[1], : img2.shape[2]] += img2
+
+    return out
+
+
 def generate_initial_psf(img):
     """
     Creates a PSF image based on a Gaussian centered on the corners
@@ -43,22 +62,15 @@ def generate_initial_psf(img):
     Parameters:
         img (3d numpy array): Image to use as a template
     """
-    out = np.zeros_like(img, dtype=np.complex128)
-    out += 1
-
     psf_shape = (64, 64, 64)
     psf = gaussian_3d(psf_shape, sigma=(1, 1, 2))
 
-    out[
-        int(img.shape[0] / 2 - psf.shape[0] / 2) :,
-        int(img.shape[1] / 2 - psf.shape[1] / 2) :,
-        int(img.shape[2] / 2 - psf.shape[2] / 2) :,
-    ][: psf.shape[0], : psf.shape[1], : psf.shape[2]] += psf
+    out = emplace_center(img, psf)
+    out += 1
 
     out = roll_psf(out)
 
     return out
-    # return np.fft.fftn(out)
 
 
 def roll_psf(img):
