@@ -5,4 +5,4 @@
 """A Python implementation of blind Richardson-Lucy deconvolution"""
 from __future__ import annotations
 
-__version__ = "0.0.3"
+__version__ = "0.1.0"
