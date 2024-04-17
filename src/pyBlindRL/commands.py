@@ -216,9 +216,19 @@ def RL_deconv(image, otf, iterations, target_device="cpu", eps=1e-10, approx=Tru
         return out
 
 
-def RL_deconv_blind(image, psf, iterations, rl_iter=10, target_device="cpu"):
+def RL_deconv_blind(image, psf, iterations=20, rl_iter=10, eps=1e-9, reg_factor=0.01, target_device="cpu"):
     """
     Perform Blinded RL deconvolution
+
+    Parameters:
+        image (3d numpy array): Image to deconvolute
+        psf (3d numpy array): Guess PSF to start deconvolution with
+        iterations (int): number of iterations to perform
+        rl_iter (int): number of sub-iterations to perform
+        target_device (str): torch device to creat output on
+        eps (float): value added to prevent zero-division error
+        reg_factor (float): value used to regularize the image
+        target_device (str): name of pytorch device to use for calculation
     """
 
     with torch.no_grad():
@@ -231,7 +241,7 @@ def RL_deconv_blind(image, psf, iterations, rl_iter=10, target_device="cpu"):
                 tmp = torch.fft.fftn(out_psf)
                 tmp *= out
                 tmp = torch.fft.ifftn(tmp)
-                tmp += 1e-9
+                tmp += eps
                 tmp = image / tmp
 
                 tmp = torch.fft.fftn(tmp)
@@ -248,7 +258,7 @@ def RL_deconv_blind(image, psf, iterations, rl_iter=10, target_device="cpu"):
                 tmp = torch.fft.fftn(out)
                 tmp *= out_psf
                 tmp = torch.fft.ifftn(tmp)
-                tmp += 1e-9
+                tmp += eps
                 tmp = image / tmp
 
                 tmp = torch.fft.fftn(tmp)
@@ -256,7 +266,7 @@ def RL_deconv_blind(image, psf, iterations, rl_iter=10, target_device="cpu"):
                 tmp = torch.fft.ifftn(tmp)
 
                 out *= tmp
-                #                out += 0.01 * image
+                out += reg_factor * image
 
                 del tmp
             out_psf = torch.fft.ifftn(out_psf)
