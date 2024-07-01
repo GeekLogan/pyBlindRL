@@ -35,7 +35,6 @@ def gaussian_3d(shape, center=None, sigma=None):
 
     return gaussian_array
 
-
 def emplace_center(img, img2, dtype=np.complex128):
     """
     Place given img2 into the center of a new array given dimensions of img
@@ -221,8 +220,8 @@ def RL_deconv_blind(image, psf, iterations=20, rl_iter=10, eps=1e-9, reg_factor=
     Perform Blinded RL deconvolution
 
     Parameters:
-        image (3d numpy array): Image to deconvolute
-        psf (3d numpy array): Guess PSF to start deconvolution with
+        image (3d tensor): Image to deconvolute
+        psf (3d tensor): Guess PSF to start deconvolution with
         iterations (int): number of iterations to perform
         rl_iter (int): number of sub-iterations to perform
         target_device (str): torch device to creat output on
@@ -230,6 +229,8 @@ def RL_deconv_blind(image, psf, iterations=20, rl_iter=10, eps=1e-9, reg_factor=
         reg_factor (float): value used to regularize the image
         target_device (str): name of pytorch device to use for calculation
     """
+
+    tmp_image = image.to(target_device)
 
     with torch.no_grad():
         out = torch.clone(image).detach().to(target_device)
@@ -242,7 +243,7 @@ def RL_deconv_blind(image, psf, iterations=20, rl_iter=10, eps=1e-9, reg_factor=
                 tmp *= out
                 tmp = torch.fft.ifftn(tmp)
                 tmp += eps
-                tmp = image / tmp
+                tmp = tmp_image / tmp
 
                 tmp = torch.fft.fftn(tmp)
                 tmp *= out.conj()
@@ -259,21 +260,21 @@ def RL_deconv_blind(image, psf, iterations=20, rl_iter=10, eps=1e-9, reg_factor=
                 tmp *= out_psf
                 tmp = torch.fft.ifftn(tmp)
                 tmp += eps
-                tmp = image / tmp
+                tmp = tmp_image / tmp
 
                 tmp = torch.fft.fftn(tmp)
                 tmp *= out_psf.conj()
                 tmp = torch.fft.ifftn(tmp)
 
                 out *= tmp
-                out += reg_factor * image
+                out += reg_factor * tmp_image
 
                 del tmp
             out_psf = torch.fft.ifftn(out_psf)
 
-        oout = torch.abs(out).numpy().astype(float)
-        oout_psf = torch.abs(out_psf).numpy().astype(float)
+        oout = torch.abs(out.cpu()).numpy().astype(float)
+        oout_psf = torch.abs(out_psf.cpu()).numpy().astype(float)
 
-        del out, out_psf
+        del out, out_psf, tmp_image
 
         return oout, oout_psf
