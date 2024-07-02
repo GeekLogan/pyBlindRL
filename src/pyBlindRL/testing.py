@@ -66,11 +66,14 @@ def deconvolve_cloud(x, y, z, xy_size, slices, section_size, blur_radius, device
 
             output_img[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)] = output
 
-            tiff.imwrite(imgs_dir + "/img_" + str(num) + ".tiff", img_tensor.detach().cpu().numpy())
-            tiff.imwrite(blurred_dir + "/img_" + str(num) + ".tiff", blurred)
-            tiff.imwrite(deconv_dir + "/img_" + str(num) + ".tiff", output_img.astype(np.uint16))
-            tiff.imwrite(output_functions_dir + "/img_" + str(num) + ".tiff", output_psf)
-            tiff.imwrite(initial_functions_dir + "/img_" + str(num) + ".tiff", psf_guess)
+            if i == 0 and j == 0:
+                tiff.imwrite(imgs_dir + "/img_" + str(num) + ".tiff", img_tensor.detach().cpu().numpy())
+                tiff.imwrite(blurred_dir + "/img_" + str(num) + ".tiff", blurred)
+                tiff.imwrite(output_functions_dir + "/img_" + str(num) + ".tiff", output_psf)
+                tiff.imwrite(initial_functions_dir + "/img_" + str(num) + ".tiff", psf_guess)
+
+            if i == int(xy_size / section_size) and j == int(xy_size / section_size):
+                tiff.imwrite(deconv_dir + "/img_" + str(num) + ".tiff", output_img.astype(np.uint16))
 
             num += 1
 
