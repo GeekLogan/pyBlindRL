@@ -1,4 +1,4 @@
-from commands import generate_initial_psf, RL_deconv_blind
+from commands import generate_initial_psf, RL_deconv_blind, unroll_psf, clip_psf
 from utility import clear_dir
 import scipy
 import cv2
@@ -27,7 +27,7 @@ x_lim = 28000
 y_lim = 28000
 count = 0
 
-def deconvolve_cloud(x, y, z, xy_size, slices, section_size, sigma, iterations, device, output_dir):
+def deconvolve_cloud_blur(x, y, z, xy_size, slices, section_size, sigma, iterations, device, output_dir):
     vol = CloudVolume('precomputed://https://ntracer2.cai-lab.org/data2/051524_bitbow_ch0', parallel=True, progress=True)
 
     img = vol[x:x+xy_size, y:y+xy_size, z:z+slices]
@@ -62,7 +62,7 @@ def deconvolve_cloud(x, y, z, xy_size, slices, section_size, sigma, iterations, 
 
             psf_guess = generate_initial_psf(blurred_section)
 
-            output, output_psf = RL_deconv_blind(blurred_section, torch.from_numpy(psf_guess), target_device=device, iterations=50)
+            output, output_psf = RL_deconv_blind(blurred_section, torch.from_numpy(psf_guess), target_device=device, iterations=iterations)
 
             output_img[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)] = output
 
@@ -77,8 +77,46 @@ def deconvolve_cloud(x, y, z, xy_size, slices, section_size, sigma, iterations, 
 
             num += 1
 
+
+def deconvolve_cloud(x, y, z, xy_size, slices, section_size, iterations, device, output_dir):
+    vol = CloudVolume('precomputed://https://ntracer2.cai-lab.org/data2/051524_bitbow_ch0', parallel=True, progress=True)
+
+    img = vol[x:x+xy_size, y:y+xy_size, z:z+slices]
+
+    img = img [:, :, :, 0]
+
+    img = img.transpose(2, 0, 1)
+
+    deconv_dir = output_dir + "/deconv"
+    output_functions_dir = output_dir + "/functions"
+    imgs_dir = output_dir + "/imgs"
+    initial_functions_dir = output_dir + "/initial_functions"
+
+    dirs = [deconv_dir, output_functions_dir, imgs_dir, initial_functions_dir]
+
+    for i in dirs:
+        clear_dir(i)
+
+    img_tensor = torch.from_numpy(np.array(img).astype(np.int16))
+    num = 0
+    psf_guess = generate_initial_psf(img_tensor)
+    output = torch.clone(img_tensor)
+
+    for i in tqdm(range(int(iterations / 10))):
+
+        output, psf_guess = RL_deconv_blind(output.type(torch.cdouble), torch.from_numpy(psf_guess).type(torch.cdouble), target_device=device, iterations=10)
+
+        output = torch.from_numpy(output)
+
+        tiff.imwrite(imgs_dir + "/img_" + str(num) + ".tiff", img_tensor.detach().cpu().numpy())
+        tiff.imwrite(output_functions_dir + "/img_" + str(num) + ".tiff", clip_psf(unroll_psf(psf_guess)))
+        tiff.imwrite(deconv_dir + "/img_" + str(num) + ".tiff", output.detach().cpu().numpy().astype(np.uint16))
+
+        num +=1
+
 seconds = time.time()
 
-deconvolve_cloud(7000, 10000, 493, 1000, 64, 1000, 5, 100, device, "./outputs")
+deconvolve_cloud(7000, 10000, 493, 1000, 64, 1000, 300, device, "/mnt/turbo/jfeggerd/outputs")
+deconvolve_cloud(19500, 5000, 480, 1000, 64, 1000, 300, device, "/mnt/turbo/jfeggerd/outputs_2")
 
 print("Total Time: " + str(time.time() - seconds) + " seconds")
