@@ -79,25 +79,25 @@ def deconvolve_cloud(x, y, z, xy_size, slices, section_size, blur_radius, device
 
 seconds = time.time()
 
-deconvolve_cloud(7000, 10000, 493, 1000, 64, 1000, 5, device, "./outputs")
+deconvolve_cloud(7000, 10000, 493, 2000, 64, 2000, 5, device, "./outputs_2000_2000")
 
 print("Total Time (1 section): " + str(time.time() - seconds) + " seconds")
 
 
 seconds = time.time()
 
-deconvolve_cloud(7000, 10000, 493, 1000, 64, 500, 5, device, "./outputs")
+deconvolve_cloud(7000, 10000, 493, 2000, 64, 1000, 5, device, "./outputs_2000_1000")
 
 print("Total Time (4 sections): " + str(time.time() - seconds) + " seconds")
 
 seconds = time.time()
 
-deconvolve_cloud(7000, 10000, 493, 1000, 64, 100, 5, device, "./outputs")
+deconvolve_cloud(7000, 10000, 493, 2000, 64, 500, 5, device, "./outputs_2000_500")
 
 print("Total Time (100 section): " + str(time.time() - seconds) + " seconds")
 
 seconds = time.time()
 
-deconvolve_cloud(7000, 10000, 493, 1000, 64, 50, 5, device, "./outputs")
+deconvolve_cloud(7000, 10000, 493, 2000, 64, 100, 5, device, "./outputs_2000_100")
 
 print("Total Time (400 sections): " + str(time.time() - seconds) + " seconds")
