@@ -27,7 +27,7 @@ x_lim = 28000
 y_lim = 28000
 count = 0
 
-def deconvolve_cloud(x, y, z, xy_size, slices, section_size, blur_radius, device, output_dir):
+def deconvolve_cloud(x, y, z, xy_size, slices, section_size, sigma, iterations, device, output_dir):
     vol = CloudVolume('precomputed://https://ntracer2.cai-lab.org/data2/051524_bitbow_ch0', parallel=True, progress=True)
 
     img = vol[x:x+xy_size, y:y+xy_size, z:z+slices]
@@ -49,7 +49,7 @@ def deconvolve_cloud(x, y, z, xy_size, slices, section_size, blur_radius, device
 
     img_tensor = torch.from_numpy(np.array(img).astype(np.int16))
 
-    blurred = scipy.ndimage.gaussian_filter(img, (1, 1, 2), radius = blur_radius)
+    blurred = scipy.ndimage.gaussian_filter(img, sigma)
 
 
     output_img = np.zeros((img_tensor.shape))
@@ -62,7 +62,7 @@ def deconvolve_cloud(x, y, z, xy_size, slices, section_size, blur_radius, device
 
             psf_guess = generate_initial_psf(blurred_section)
 
-            output, output_psf = RL_deconv_blind(blurred_section, torch.from_numpy(psf_guess), target_device=device, iterations=20)
+            output, output_psf = RL_deconv_blind(blurred_section, torch.from_numpy(psf_guess), target_device=device, iterations=50)
 
             output_img[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)] = output
 
@@ -72,32 +72,13 @@ def deconvolve_cloud(x, y, z, xy_size, slices, section_size, blur_radius, device
                 tiff.imwrite(output_functions_dir + "/img_" + str(num) + ".tiff", output_psf)
                 tiff.imwrite(initial_functions_dir + "/img_" + str(num) + ".tiff", psf_guess)
 
-            if i == int(xy_size / section_size) and j == int(xy_size / section_size):
+            if i == int(xy_size / section_size) - 1 and j == int(xy_size / section_size) - 1:
                 tiff.imwrite(deconv_dir + "/img_" + str(num) + ".tiff", output_img.astype(np.uint16))
 
             num += 1
 
 seconds = time.time()
 
-deconvolve_cloud(7000, 10000, 493, 2000, 64, 2000, 5, device, "./outputs_2000_2000")
+deconvolve_cloud(7000, 10000, 493, 1000, 64, 1000, 5, 100, device, "./outputs")
 
-print("Total Time (1 section): " + str(time.time() - seconds) + " seconds")
-
-
-seconds = time.time()
-
-deconvolve_cloud(7000, 10000, 493, 2000, 64, 1000, 5, device, "./outputs_2000_1000")
-
-print("Total Time (4 sections): " + str(time.time() - seconds) + " seconds")
-
-seconds = time.time()
-
-deconvolve_cloud(7000, 10000, 493, 2000, 64, 500, 5, device, "./outputs_2000_500")
-
-print("Total Time (100 section): " + str(time.time() - seconds) + " seconds")
-
-seconds = time.time()
-
-deconvolve_cloud(7000, 10000, 493, 2000, 64, 100, 5, device, "./outputs_2000_100")
-
-print("Total Time (400 sections): " + str(time.time() - seconds) + " seconds")
+print("Total Time: " + str(time.time() - seconds) + " seconds")
