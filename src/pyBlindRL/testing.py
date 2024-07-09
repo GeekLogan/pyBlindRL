@@ -2,6 +2,7 @@ from commands import generate_initial_psf, RL_deconv_blind, unroll_psf, clip_psf
 from utility import clear_dir
 import scipy
 import cv2
+import matplotlib.pyplot as plt
 import time
 import tifffile as tiff
 import torch
@@ -102,21 +103,41 @@ def deconvolve_cloud(x, y, z, xy_size, slices, section_size, iterations, device,
     psf_guess = generate_initial_psf(img_tensor)
     output = torch.clone(img_tensor)
 
+    start_time = time.time()
+
+    iters = []
+    times = []
+
     for i in tqdm(range(int(iterations / 10))):
 
         output, psf_guess = RL_deconv_blind(output.type(torch.cdouble), torch.from_numpy(psf_guess).type(torch.cdouble), target_device=device, iterations=10)
 
         output = torch.from_numpy(output)
 
-        tiff.imwrite(imgs_dir + "/img_" + str(num) + ".tiff", img_tensor.detach().cpu().numpy())
-        tiff.imwrite(output_functions_dir + "/img_" + str(num) + ".tiff", clip_psf(unroll_psf(psf_guess)))
-        tiff.imwrite(deconv_dir + "/img_" + str(num) + ".tiff", output.detach().cpu().numpy().astype(np.uint16))
+        iters.append((num + 1) * 10)
+        times.append(time.time() - start_time)
+
+        tiff.imwrite(imgs_dir + "/img_" + str((num + 1) * 10) + ".tiff", img_tensor.detach().cpu().numpy())
+        tiff.imwrite(output_functions_dir + "/img_" + str((num + 1) * 10) + ".tiff", clip_psf(unroll_psf(psf_guess)))
+        tiff.imwrite(deconv_dir + "/img_" + str((num + 1) * 10) + ".tiff", output.detach().cpu().numpy().astype(np.uint16))
 
         num +=1
 
+    plt.plot(iters, times)
+    plt.xlabel("Iterations")
+    plt.ylabel("Time (s)")
+
+    plt.title("Deconvolution Iteration time")
+
+    plt.savefig(output_dir + "/time.png")
+
+
 seconds = time.time()
 
-deconvolve_cloud(7000, 10000, 493, 1000, 64, 1000, 300, device, "/mnt/turbo/jfeggerd/outputs")
-deconvolve_cloud(19500, 5000, 480, 1000, 64, 1000, 300, device, "/mnt/turbo/jfeggerd/outputs_2")
+# deconvolve_cloud(7000, 10000, 493, 1000, 64, 1000, 10, device, "/mnt/turbo/jfeggerd/outputs")
+# deconvolve_cloud(19500, 6000, 480, 1000, 64, 1000, 10, device, "/mnt/turbo/jfeggerd/outputs_2")
+
+deconvolve_cloud(7000, 10000, 493, 1000, 64, 1000, 10, device, "./outputs")
+deconvolve_cloud(19500, 6000, 480, 1000, 64, 1000, 10, device, "./outputs_2")
 
 print("Total Time: " + str(time.time() - seconds) + " seconds")
