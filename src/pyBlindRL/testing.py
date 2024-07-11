@@ -1,4 +1,4 @@
-from commands import generate_initial_psf, RL_deconv_blind, unroll_psf, clip_psf
+from commands import generate_initial_psf, RL_deconv_blind, unroll_psf, clip_psf, intensity_match_image
 from utility import clear_dir
 import scipy
 import cv2
@@ -28,7 +28,7 @@ x_lim = 28000
 y_lim = 28000
 count = 0
 
-def deconvolve_cloud_blur(x, y, z, xy_size, slices, section_size, sigma, iterations, device, output_dir):
+def deconvolve_cloud_section(x, y, z, xy_size, slices, section_size, iterations, device, output_dir):
     vol = CloudVolume('precomputed://https://ntracer2.cai-lab.org/data2/051524_bitbow_ch0', parallel=True, progress=True)
 
     img = vol[x:x+xy_size, y:y+xy_size, z:z+slices]
@@ -50,7 +50,9 @@ def deconvolve_cloud_blur(x, y, z, xy_size, slices, section_size, sigma, iterati
 
     img_tensor = torch.from_numpy(np.array(img).astype(np.int16))
 
-    blurred = scipy.ndimage.gaussian_filter(img, sigma)
+    # blurred = scipy.ndimage.gaussian_filter(img, sigma)
+
+    blurred = torch.clone(img_tensor)
 
 
     output_img = np.zeros((img_tensor.shape))
@@ -59,7 +61,7 @@ def deconvolve_cloud_blur(x, y, z, xy_size, slices, section_size, sigma, iterati
 
     for i in tqdm(range(int(xy_size / section_size))):
         for j in range(int(xy_size / section_size)):
-            blurred_section = torch.clone(torch.from_numpy((blurred[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)]).astype(np.int16)))
+            blurred_section = torch.clone((blurred[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)]))
 
             psf_guess = generate_initial_psf(blurred_section)
 
@@ -69,9 +71,7 @@ def deconvolve_cloud_blur(x, y, z, xy_size, slices, section_size, sigma, iterati
 
             if i == 0 and j == 0:
                 tiff.imwrite(imgs_dir + "/img_" + str(num) + ".tiff", img_tensor.detach().cpu().numpy())
-                tiff.imwrite(blurred_dir + "/img_" + str(num) + ".tiff", blurred)
                 tiff.imwrite(output_functions_dir + "/img_" + str(num) + ".tiff", output_psf)
-                tiff.imwrite(initial_functions_dir + "/img_" + str(num) + ".tiff", psf_guess)
 
             if i == int(xy_size / section_size) - 1 and j == int(xy_size / section_size) - 1:
                 tiff.imwrite(deconv_dir + "/img_" + str(num) + ".tiff", output_img.astype(np.uint16))
@@ -108,9 +108,15 @@ def deconvolve_cloud(x, y, z, xy_size, slices, section_size, iterations, device,
     iters = []
     times = []
 
+
+
     for i in tqdm(range(int(iterations / 10))):
 
+
+
         output, psf_guess = RL_deconv_blind(output.type(torch.cdouble), torch.from_numpy(psf_guess).type(torch.cdouble), target_device=device, iterations=10)
+
+        output_copy = np.copy(intensity_match_image(img, output))
 
         output = torch.from_numpy(output)
 
@@ -119,7 +125,7 @@ def deconvolve_cloud(x, y, z, xy_size, slices, section_size, iterations, device,
 
         tiff.imwrite(imgs_dir + "/img_" + str((num + 1) * 10) + ".tiff", img_tensor.detach().cpu().numpy())
         tiff.imwrite(output_functions_dir + "/img_" + str((num + 1) * 10) + ".tiff", clip_psf(unroll_psf(psf_guess)))
-        tiff.imwrite(deconv_dir + "/img_" + str((num + 1) * 10) + ".tiff", output.detach().cpu().numpy().astype(np.uint16))
+        tiff.imwrite(deconv_dir + "/img_" + str((num + 1) * 10) + ".tiff", output_copy.astype(np.uint16))
 
         num +=1
 
@@ -131,13 +137,13 @@ def deconvolve_cloud(x, y, z, xy_size, slices, section_size, iterations, device,
 
     plt.savefig(output_dir + "/time.png")
 
+    plt.close()
+
 
 seconds = time.time()
 
-# deconvolve_cloud(7000, 10000, 493, 1000, 64, 1000, 10, device, "/mnt/turbo/jfeggerd/outputs")
-# deconvolve_cloud(19500, 6000, 480, 1000, 64, 1000, 10, device, "/mnt/turbo/jfeggerd/outputs_2")
-
-deconvolve_cloud(7000, 10000, 493, 1000, 64, 1000, 10, device, "./outputs")
-deconvolve_cloud(19500, 6000, 480, 1000, 64, 1000, 10, device, "./outputs_2")
+deconvolve_cloud_section(7000, 10000, 493, 1000, 64, 100, 200, device, "/mnt/turbo/jfeggerd/outputs_sectioned")
+deconvolve_cloud_section(20000, 6000, 480, 1000, 64, 100, 200, device, "/mnt/turbo/jfeggerd/outputs_2_sectioned")
+deconvolve_cloud_section(12000, 8000, 480, 1000, 64, 100, 200, device, "/mnt/turbo/jfeggerd/outputs_3_sectioned")
 
 print("Total Time: " + str(time.time() - seconds) + " seconds")
