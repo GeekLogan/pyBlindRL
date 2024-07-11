@@ -46,7 +46,7 @@ def graph_functions(function_dir, output_file):
     plt.savefig(output_file)
     plt.close()
 
-graph_functions("/mnt/turbo/jfeggerd/outputs_3/functions", "./function3.png")
+graph_functions("/mnt/turbo/jfeggerd/outputs_sectioned/functions", "./functions_avg.png")
 
 
 

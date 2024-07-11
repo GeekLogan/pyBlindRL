@@ -144,6 +144,8 @@ def intensity_match_image(img, img_deconv, method="peak"):
     if method == "peak":
         out = np.copy(img_deconv)
 
+        out = out.astype(np.float64)
+
         out /= out.max()
         out *= img.max()
 
@@ -215,7 +217,7 @@ def RL_deconv(image, otf, iterations, target_device="cpu", eps=1e-10, approx=Tru
         return out
 
 
-def RL_deconv_blind(image, psf, iterations=20, rl_iter=10, eps=1e-9, reg_factor=0.01, target_device="cpu"):
+def RL_deconv_blind(gt_image, out_image, psf, iterations=20, rl_iter=10, eps=1e-9, reg_factor=0.01, target_device="cpu"):
     """
     Perform Blinded RL deconvolution
 
@@ -230,10 +232,10 @@ def RL_deconv_blind(image, psf, iterations=20, rl_iter=10, eps=1e-9, reg_factor=
         target_device (str): name of pytorch device to use for calculation
     """
 
-    tmp_image = image.to(target_device)
+    tmp_image = gt_image.to(target_device)
 
     with torch.no_grad():
-        out = torch.clone(image).detach().to(target_device)
+        out = torch.clone(out_image).detach().to(target_device)
         out_psf = torch.clone(psf).detach().to(target_device)
 
         for _bld in tqdm.trange(iterations):
