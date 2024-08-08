@@ -1,3 +1,4 @@
+import scipy.signal
 from commands import generate_initial_psf, RL_deconv_blind, unroll_psf, clip_psf, normalize_psf
 from utility import clear_dir
 import scipy
@@ -46,7 +47,44 @@ def graph_functions(function_dir, output_file):
     plt.savefig(output_file)
     plt.close()
 
-graph_functions("/mnt/turbo/jfeggerd/outputs_sectioned/functions", "./functions_avg.png")
+
+def graph_fwhm(function_dir, output_file):
+    files = glob.glob(function_dir + "/*.tiff")
+    files.sort()
+
+
+    f = plt.figure()
+
+    fwhms = []
+    iters = []
+
+    for i in tqdm(range(len(files))):
+        function = tiff.imread(files[i])
+        function.astype(np.uint16)
+
+        function = normalize_psf(function)
+
+        line = function[32, 32, :]
+
+        print(line.shape)
+
+        peaks, _ = scipy.signal.find_peaks(line, height= 1)
+
+        widths, _, _, _ = scipy.signal.peak_widths(line, peaks, 0.5)
+
+        fwhms.append(widths[0])
+        iters.append((i + 1) * 10)
+
+
+    plt.plot(iters, fwhms)
+    plt.ylabel("Full Width at Half Maximum")
+    plt.xlabel("Iteration")
+
+
+    plt.savefig(output_file)
+    plt.close()
+
+graph_fwhm("/mnt/turbo/jfeggerd/outputs_normalized/functions", "./fwhms.png")
 
 
 

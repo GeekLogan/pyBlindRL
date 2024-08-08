@@ -4,6 +4,7 @@
 #   -------------------------------------------------------------
 
 import numpy as np
+import tifffile as tiff
 import torch
 import tqdm
 
@@ -109,7 +110,7 @@ def normalize_psf(psf):
     """
 
     out = np.zeros(psf.shape, dtype=np.float32)
-    out[...] += psf
+    out[...] += psf.astype(np.float32)
     out -= out.min()
     out /= out.max()
     return out
@@ -152,7 +153,7 @@ def intensity_match_image(img, img_deconv, method="peak"):
         return out.astype(np.uint16)
 
 
-def RL_deconv(image, otf, iterations, target_device="cpu", eps=1e-10, approx=True):
+def RL_deconv(image, out, otf, iterations, target_device="cpu", eps=1e-10, approx=True):
     """
     Perform unblinded RL deconvolution
 
@@ -166,7 +167,12 @@ def RL_deconv(image, otf, iterations, target_device="cpu", eps=1e-10, approx=Tru
     """
 
     with torch.no_grad():
-        out = torch.clone(image).detach().to(target_device)
+
+        image = torch.clone(image).detach().to(target_device)
+
+        out = torch.clone(out).detach().to(target_device)
+
+        otf = torch.clone(otf).detach().to(target_device)
 
         depth, height, width = out.shape
         window = 25
@@ -213,7 +219,7 @@ def RL_deconv(image, otf, iterations, target_device="cpu", eps=1e-10, approx=Tru
 
             out *= tmp
 
-        out = torch.abs(out).numpy().astype(float)
+        out = torch.abs(out).cpu().numpy().astype(float)
         return out
 
 
@@ -280,3 +286,76 @@ def RL_deconv_blind(gt_image, out_image, psf, iterations=20, rl_iter=10, eps=1e-
         del out, out_psf, tmp_image
 
         return oout, oout_psf
+
+#Takes in the array of overlapping image tiles and compute some average from the
+#edges of the images
+
+## Just do the deconvolution with tiles sizes of ~150 x 150 then use a weighted averaging to
+#hopefully remove the edge effects
+def edge_correction(image_array, large_image_width, target_image_width, img_size):
+
+    overlap = int((large_image_width - target_image_width) / 2)
+
+    gradient = np.zeros((64, 150, 150))
+
+    for i in range(150):
+        if i <= 25:
+            gradient[:, i, :] = (i / 25) * 50 + 0
+        elif i <= 50:
+            gradient[:, i, :] = ((i - 25) / 25) * 50 + 50
+        elif i <= 100:
+            gradient[:, i, :] = 100
+        elif i <= 125:
+            gradient[:, i, :] = (-(i - 100) / 25) * 50 + 100
+        else:
+            gradient[:, i, :] = (-(i - 125) / 25) * 50 + 50
+    for i in range(150):
+        for j in range(150):
+            if j <= 25:
+                val = min(gradient[0, i, j], (j / 25) * 50 + 0)
+
+                gradient[:, i, j] = val
+            elif j <= 50:
+                val = min(gradient[0, i, j], ((j - 25) / 25) * 50 + 50)
+
+                gradient[:, i, j] = val
+            elif j <= 100:
+                val = min(gradient[0, i, j], 100)
+
+                gradient[:, i, j] = val
+            elif j <= 125:
+                val = min(gradient[0, i, j], (-(j - 100) / 25) * 50 + 100)
+
+                gradient[:, i, j] = val
+            else:
+                val = min(gradient[0, i, j], (-(j - 125) / 25) * 50 + 50)
+
+                gradient[:, i, j] = val
+
+
+    tiff.imwrite("./gradient.tiff", gradient)
+
+    gradient = gradient / 100
+
+    output = np.zeros(img_size)
+    counts = np.zeros(img_size)
+
+    for i in range(12):
+        for j in range(12):
+            if i > 0 and i < 11 and j > 0 and j < 11:
+                output[:, (i*target_image_width) - overlap:((i+1) * target_image_width) + overlap, (j*target_image_width) - overlap:((j+1) * target_image_width) + overlap] = output[:, (i*target_image_width) - overlap:((i+1) * target_image_width) + overlap, (j*target_image_width) - overlap:((j+1) * target_image_width) + overlap] + (image_array[i, j, :, :, :] * gradient)
+                counts[:, (i*target_image_width) - overlap:((i+1) * target_image_width) + overlap, (j*target_image_width) - overlap:((j+1) * target_image_width) + overlap] = counts[:, (i*target_image_width) - overlap:((i+1) * target_image_width) + overlap, (j*target_image_width) - overlap:((j+1) * target_image_width) + overlap] + gradient
+            else:
+                counts[:, (i*target_image_width):((i+1) * target_image_width), (j*target_image_width):((j+1) * target_image_width)] = 1
+
+    for i in range(1200):
+        for j in range(1200):
+            if counts[0, i, j] != 1 and counts[0, i, j] > 0:
+                output[:, i, j] = output[:, i, j] * (1 / counts[0, i, j])
+
+    # output = output / counts
+
+    return output
+
+# edge_correction(np.zeros((1,1)), 150, 100, (1,1))
+
