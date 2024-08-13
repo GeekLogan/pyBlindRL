@@ -1,0 +1,50 @@
+
+    plt.plot(iters, times)
+    plt.xlabel("Iterations")
+    plt.ylabel("Time (s)")
+
+    plt.title("Deconvolution Iteration time")
+
+    plt.savefig(output_dir + "/time.png")
+
+    plt.close()
+
+    plt.plot(iters, ssims)
+    plt.xlabel("Iterations")
+    plt.ylabel("Structural Similarity")
+
+    plt.title("Structural Similarity Through Iterations")
+
+    plt.savefig(output_dir + "/ssim.png")
+
+    plt.close()
+
+    plt.plot(iters, psnrs)
+    plt.xlabel("Iterations")
+    plt.ylabel("Peak Signal to Noise Ratio")
+
+    plt.title("PSNR Through Iterations")
+
+    plt.savefig(output_dir + "/psnr.png")
+
+    plt.close()
+
+    plt.plot(avg_iters, ssims_avg)
+    plt.xlabel("Iterations")
+    plt.ylabel("Structural Similarity Avg PSF")
+
+    plt.title("Structural Similarity Through Iterations")
+
+    plt.savefig(output_dir + "/ssim_avg.png")
+
+    plt.close()
+
+    plt.plot(avg_iters, psnrs_avg)
+    plt.xlabel("Iterations")
+    plt.ylabel("Peak Signal to Noise Ratio")
+
+    plt.title("PSNR Through Iterations Avg PSF")
+
+    plt.savefig(output_dir + "/psnr_avg.png")
+
+    plt.close()

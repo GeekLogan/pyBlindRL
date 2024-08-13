@@ -168,6 +168,9 @@ def RL_deconv(image, out, otf, iterations, target_device="cpu", eps=1e-10, appro
 
     with torch.no_grad():
 
+
+        start_mem = torch.cuda.memory_allocated(target_device)
+
         image = torch.clone(image).detach().to(target_device)
 
         out = torch.clone(out).detach().to(target_device)
@@ -219,6 +222,12 @@ def RL_deconv(image, out, otf, iterations, target_device="cpu", eps=1e-10, appro
 
             out *= tmp
 
+        end_mem = torch.cuda.memory_allocated(target_device)
+
+        print("Deconvolution Memory Usage (Bytes)")
+        print(end_mem)
+
+
         out = torch.abs(out).cpu().numpy().astype(float)
         return out
 
@@ -237,6 +246,8 @@ def RL_deconv_blind(gt_image, out_image, psf, iterations=20, rl_iter=10, eps=1e-
         reg_factor (float): value used to regularize the image
         target_device (str): name of pytorch device to use for calculation
     """
+
+    start_memory = torch.cuda.memory_allocated(target_device)
 
     tmp_image = gt_image.to(target_device)
 
@@ -283,6 +294,11 @@ def RL_deconv_blind(gt_image, out_image, psf, iterations=20, rl_iter=10, eps=1e-
         oout = torch.abs(out.cpu()).numpy().astype(float)
         oout_psf = torch.abs(out_psf.cpu()).numpy().astype(float)
 
+        end_memory = torch.cuda.memory_allocated(target_device)
+
+        print("Blinded Memory Usage (Bytes)")
+        print(end_memory)
+
         del out, out_psf, tmp_image
 
         return oout, oout_psf
@@ -296,39 +312,40 @@ def edge_correction(image_array, large_image_width, target_image_width, img_size
 
     overlap = int((large_image_width - target_image_width) / 2)
 
-    gradient = np.zeros((64, 150, 150))
+    gradient = np.zeros((img_size[0], large_image_width, large_image_width))
+    regions = [large_image_width / 6, 2 * large_image_width / 6, 3 * large_image_width / 6, 4 * large_image_width / 6, 5 * large_image_width / 6, large_image_width]
 
-    for i in range(150):
-        if i <= 25:
-            gradient[:, i, :] = (i / 25) * 50 + 0
-        elif i <= 50:
-            gradient[:, i, :] = ((i - 25) / 25) * 50 + 50
-        elif i <= 100:
+    for i in range(large_image_width):
+        if i <= regions[0]:
+            gradient[:, i, :] = (i / regions[0]) * 50 + 0
+        elif i <= regions[1]:
+            gradient[:, i, :] = ((i - regions[0]) / regions[0]) * 50 + 50
+        elif i <= regions[3]:
             gradient[:, i, :] = 100
-        elif i <= 125:
-            gradient[:, i, :] = (-(i - 100) / 25) * 50 + 100
+        elif i <= regions[4]:
+            gradient[:, i, :] = (-(i - regions[3]) / regions[0]) * 50 + 100
         else:
-            gradient[:, i, :] = (-(i - 125) / 25) * 50 + 50
-    for i in range(150):
-        for j in range(150):
-            if j <= 25:
-                val = min(gradient[0, i, j], (j / 25) * 50 + 0)
+            gradient[:, i, :] = (-(i - regions[4]) / regions[0]) * 50 + 50
+    for i in range(large_image_width):
+        for j in range(large_image_width):
+            if j <= regions[0]:
+                val = min(gradient[0, i, j], (j / regions[0]) * 50 + 0)
 
                 gradient[:, i, j] = val
-            elif j <= 50:
-                val = min(gradient[0, i, j], ((j - 25) / 25) * 50 + 50)
+            elif j <= regions[1]:
+                val = min(gradient[0, i, j], ((j - regions[0]) / regions[0]) * 50 + 50)
 
                 gradient[:, i, j] = val
-            elif j <= 100:
+            elif j <= regions[3]:
                 val = min(gradient[0, i, j], 100)
 
                 gradient[:, i, j] = val
-            elif j <= 125:
-                val = min(gradient[0, i, j], (-(j - 100) / 25) * 50 + 100)
+            elif j <= regions[4]:
+                val = min(gradient[0, i, j], (-(j - regions[3]) / regions[0]) * 50 + 100)
 
                 gradient[:, i, j] = val
             else:
-                val = min(gradient[0, i, j], (-(j - 125) / 25) * 50 + 50)
+                val = min(gradient[0, i, j], (-(j - regions[4]) / regions[0]) * 50 + 50)
 
                 gradient[:, i, j] = val
 
@@ -340,22 +357,20 @@ def edge_correction(image_array, large_image_width, target_image_width, img_size
     output = np.zeros(img_size)
     counts = np.zeros(img_size)
 
-    for i in range(12):
-        for j in range(12):
-            if i > 0 and i < 11 and j > 0 and j < 11:
+    tile_num = img_size[1] / target_image_width
+
+    for i in range(int(tile_num)):
+        for j in range(int(tile_num)):
+            if i > 0 and i < tile_num - 1 and j > 0 and j < tile_num - 1:
                 output[:, (i*target_image_width) - overlap:((i+1) * target_image_width) + overlap, (j*target_image_width) - overlap:((j+1) * target_image_width) + overlap] = output[:, (i*target_image_width) - overlap:((i+1) * target_image_width) + overlap, (j*target_image_width) - overlap:((j+1) * target_image_width) + overlap] + (image_array[i, j, :, :, :] * gradient)
                 counts[:, (i*target_image_width) - overlap:((i+1) * target_image_width) + overlap, (j*target_image_width) - overlap:((j+1) * target_image_width) + overlap] = counts[:, (i*target_image_width) - overlap:((i+1) * target_image_width) + overlap, (j*target_image_width) - overlap:((j+1) * target_image_width) + overlap] + gradient
             else:
                 counts[:, (i*target_image_width):((i+1) * target_image_width), (j*target_image_width):((j+1) * target_image_width)] = 1
 
-    for i in range(1200):
-        for j in range(1200):
+    for i in range(target_image_width):
+        for j in range(target_image_width):
             if counts[0, i, j] != 1 and counts[0, i, j] > 0:
                 output[:, i, j] = output[:, i, j] * (1 / counts[0, i, j])
 
-    # output = output / counts
-
     return output
-
-# edge_correction(np.zeros((1,1)), 150, 100, (1,1))
 
