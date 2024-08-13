@@ -1,4 +1,4 @@
-from commands import generate_initial_psf, RL_deconv_blind, unroll_psf, clip_psf, intensity_match_image, RL_deconv, roll_psf, normalize_psf, edge_correction
+from commands import *
 from utility import clear_dir
 import scipy
 import skimage.metrics
@@ -185,9 +185,7 @@ def deconvolve_cloud_rolling(x, y, z, xy_size, slices, section_size, iterations,
     for i in range(int(xy_size / section_size)):
         for j in range(int(xy_size / section_size)):
             for _ in tqdm(range(int(iterations))):
-                start_mem = torch.cuda.memory_allocated(device)
                 output_piece, psf_guess_piece = RL_deconv_blind(img_tensor[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)].type(torch.cdouble), output[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)].type(torch.cdouble), torch.from_numpy(psf_guess[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)]).type(torch.cdouble), target_device=device, iterations=1, reg_factor=0)
-
 
                 output[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)] = torch.from_numpy(output_piece)
                 psf_guess[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)] = psf_guess_piece
@@ -207,12 +205,27 @@ def deconvolve_cloud_rolling(x, y, z, xy_size, slices, section_size, iterations,
     ssims.append(skimage.metrics.structural_similarity(img_tensor.numpy()[32, :, :].astype(np.uint16), output_copy[32, :, :].astype(np.uint16)))
     psnrs.append(skimage.metrics.peak_signal_noise_ratio(img_tensor.numpy()[32, :, :].astype(np.uint16), output_copy[32, :, :].astype(np.uint16)))
 
-    psf_average = np.copy(psf_guess)
-    #Calculate an average psf from each of the 100 generated
+    psf_average = np.zeros((slices, section_size, section_size))
+
+
+    ##Calculate an average psf from those already generated
+    psf_average = np.zeros((slices, section_size, section_size), dtype=np.complex128)
+
+    for i in range(int(xy_size / section_size)):
+        for j in range(int(xy_size / section_size)):
+            psf_average[:, :, :] += psf_guess[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)]
+
+    psf_average = psf_average / ((xy_size / section_size) **2)
+
 
     psf_average = unroll_psf(psf_average)
-    psf_average_small = clip_psf(psf_average, (64, 100, 100))
-    psf_average_large = clip_psf(psf_average,  (64, 150, 150))
+
+    tiff.imwrite("./psf_average.tiff", psf_average.astype(np.uint16))
+
+    psf_average_small = np.copy(psf_average)
+
+    psf_average_large = np.zeros((slices, 150, 150))
+    psf_average_large = emplace_center(psf_average_large, psf_average)
 
     psf_average_small = roll_psf(psf_average_small)
     psf_average_large = roll_psf(psf_average_large)
@@ -262,4 +275,4 @@ def deconvolve_cloud_rolling(x, y, z, xy_size, slices, section_size, iterations,
 
 
 device = torch.device("cuda", 0)
-deconvolve_cloud_rolling(6900, 11900, 493, 1200, 64, 1200, 20, device, "/mnt/turbo/jfeggerd/outputs_rolling_edge")
+deconvolve_cloud_rolling(6900, 9900, 493, 1200, 64, 100, 20, device, "/mnt/turbo/jfeggerd/outputs_rolling_edge")
