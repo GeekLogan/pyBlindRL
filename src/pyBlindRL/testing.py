@@ -1,4 +1,4 @@
-from commands import generate_initial_psf, RL_deconv_blind, unroll_psf, clip_psf, intensity_match_image, RL_deconv, roll_psf, normalize_psf, edge_correction
+from commands import *
 from utility import clear_dir
 import scipy
 import skimage.metrics
@@ -185,9 +185,8 @@ def deconvolve_cloud_rolling(x, y, z, xy_size, slices, section_size, iterations,
     for i in range(int(xy_size / section_size)):
         for j in range(int(xy_size / section_size)):
             for _ in tqdm(range(int(iterations))):
-                start_mem = torch.cuda.memory_allocated(device)
-                output_piece, psf_guess_piece = RL_deconv_blind(img_tensor[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)].type(torch.cdouble), output[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)].type(torch.cdouble), torch.from_numpy(psf_guess[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)]).type(torch.cdouble), target_device=device, iterations=1, reg_factor=0)
 
+                output_piece, psf_guess_piece = RL_deconv_blind(img_tensor[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)].type(torch.cdouble), output[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)].type(torch.cdouble), torch.from_numpy(psf_guess[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)]).type(torch.cdouble), target_device=device, iterations=1, reg_factor=0)
 
                 output[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)] = torch.from_numpy(output_piece)
                 psf_guess[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)] = psf_guess_piece
@@ -207,12 +206,27 @@ def deconvolve_cloud_rolling(x, y, z, xy_size, slices, section_size, iterations,
     ssims.append(skimage.metrics.structural_similarity(img_tensor.numpy()[32, :, :].astype(np.uint16), output_copy[32, :, :].astype(np.uint16)))
     psnrs.append(skimage.metrics.peak_signal_noise_ratio(img_tensor.numpy()[32, :, :].astype(np.uint16), output_copy[32, :, :].astype(np.uint16)))
 
-    psf_average = np.copy(psf_guess)
-    #Calculate an average psf from each of the 100 generated
+    psf_average = np.zeros((slices, section_size, section_size))
+
+
+    ##Calculate an average psf from those already generated
+    psf_average = np.zeros((slices, section_size, section_size), dtype=np.complex128)
+
+    for i in range(int(xy_size / section_size)):
+        for j in range(int(xy_size / section_size)):
+            psf_average[:, :, :] += psf_guess[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)]
+
+    psf_average = psf_average / ((xy_size / section_size) **2)
+
 
     psf_average = unroll_psf(psf_average)
-    psf_average_small = clip_psf(psf_average, (64, 100, 100))
-    psf_average_large = clip_psf(psf_average,  (64, 150, 150))
+
+    # tiff.imwrite(output_functions_dir + "/img_" + str((num + 1)) + ".tiff", clip_psf(psf_average).astype(np.uint16))
+
+    psf_average_small = np.copy(psf_average)
+
+    psf_average_large = np.zeros((slices, 150, 150))
+    psf_average_large = emplace_center(psf_average_large, psf_average)
 
     psf_average_small = roll_psf(psf_average_small)
     psf_average_large = roll_psf(psf_average_large)
@@ -230,36 +244,34 @@ def deconvolve_cloud_rolling(x, y, z, xy_size, slices, section_size, iterations,
         for j in range(int(xy_size / section_size)):
 
             if i > 0 and i < 11 and j > 0 and j < 11:
-                output_piece = RL_deconv(img_tensor[:, (i*section_size) - overlap:((i+1) * section_size) + overlap, (j*section_size) - overlap :((j+1) * section_size) + overlap], intermediate_output[:, (i*section_size) - overlap :((i+1) * section_size) + overlap, (j*section_size) - overlap :((j+1) * section_size) + overlap].type(torch.cdouble), torch.from_numpy(psf_average_large).type(torch.cdouble), iterations = iterations, target_device=device)
+                output_piece = RL_deconv(img_tensor[:, (i*section_size) - overlap:((i+1) * section_size) + overlap, (j*section_size) - overlap :((j+1) * section_size) + overlap], intermediate_output[:, (i*section_size) - overlap :((i+1) * section_size) + overlap, (j*section_size) - overlap :((j+1) * section_size) + overlap].type(torch.cdouble), torch.from_numpy(psf_average_large).type(torch.cdouble), iterations = iterations * 5, target_device=device)
 
                 # output_piece = match_histograms(output_piece, img_tensor[:, (i*section_size) - overlap:((i+1) * section_size) + overlap, (j*section_size) - overlap :((j+1) * section_size) + overlap].numpy())
                 average_output[i, j, :, :, :] = output_piece
             else:
                 output_piece = RL_deconv(img_tensor[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)], intermediate_output[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)].type(torch.cdouble), torch.from_numpy(psf_average_small).type(torch.cdouble), iterations = iterations, target_device=device)
 
-    average_output = torch.from_numpy(edge_correction(average_output, 150, 100, (64, 1200, 1200)))
+        average_output = torch.from_numpy(edge_correction(average_output, 150, 100, (64, 1200, 1200)))
 
-    normal_deconv_time = time.time()
-    print("Normal Deconvolution Time")
-    print(normal_deconv_time - psf_time)
+        normal_deconv_time = time.time()
+        print("Normal Deconvolution Time")
+        print(normal_deconv_time - psf_time)
 
-    ## Data collection for the average
-    # avg_iters.append(num + 1)
-    # output_avg_copy = np.copy(average_output.numpy())
-    # output_avg_copy = intensity_match_image(img_tensor.numpy().astype(np.uint16), output_avg_copy.astype(np.uint16))
+        ## Data collection for the average
+        # avg_iters.append(num + 1)
+        # output_avg_copy = np.copy(average_output.numpy())
+        # output_avg_copy = intensity_match_image(img_tensor.numpy().astype(np.uint16), output_avg_copy.astype(np.uint16))
 
-    # ssims_avg.append(skimage.metrics.structural_similarity(img_tensor.numpy()[32, :, :].astype(np.uint16), output_avg_copy[32, :, :].astype(np.uint16)))
-    # psnrs_avg.append(skimage.metrics.peak_signal_noise_ratio(img_tensor.numpy()[32, :, :].astype(np.uint16), output_avg_copy[32, :, :].astype(np.uint16)))
+        # ssims_avg.append(skimage.metrics.structural_similarity(img_tensor.numpy()[32, :, :].astype(np.uint16), output_avg_copy[32, :, :].astype(np.uint16)))
+        # psnrs_avg.append(skimage.metrics.peak_signal_noise_ratio(img_tensor.numpy()[32, :, :].astype(np.uint16), output_avg_copy[32, :, :].astype(np.uint16)))
 
 
-    tiff.imwrite(deconv_avg_dir + "/img_" + str((num + 1)) + ".tiff", average_output.numpy().astype(np.uint16))
-    # tiff.imwrite(output_functions_dir + "/img_" + str((num + 1)) + ".tiff", clip_psf(unroll_psf(psf_average)).astype(np.uint16))
+        tiff.imwrite(deconv_avg_dir + "/img_" + str((num + 1)) + ".tiff", average_output.numpy().astype(np.uint16))
 
-    ## End
+        ## End
 
-    # tiff.imwrite(imgs_dir + "/img_" + str((num + 1)) + ".tiff", img_tensor.detach().cpu().numpy())
-    # tiff.imwrite(deconv_dir + "/img_" + str((num + 1)) + ".tiff", output.numpy().astype(np.uint16))
-
+        # tiff.imwrite(imgs_dir + "/img_" + str((num + 1)) + ".tiff", img_tensor.detach().cpu().numpy())
+        # tiff.imwrite(deconv_dir + "/img_" + str((num + 1)) + ".tiff", output.numpy().astype(np.uint16))
 
 device = torch.device("cuda", 0)
-deconvolve_cloud_rolling(6900, 11900, 493, 1200, 64, 1200, 20, device, "/mnt/turbo/jfeggerd/outputs_rolling_edge")
+deconvolve_cloud_rolling(6900, 9900, 493, 1200, 64, 100, 30, device, "/mnt/turbo/jfeggerd/outputs_rolling_edge")

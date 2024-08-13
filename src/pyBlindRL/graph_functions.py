@@ -52,6 +52,7 @@ def graph_fwhm(function_dir, output_file):
     files = glob.glob(function_dir + "/*.tiff")
     files.sort()
 
+    print(len(files))
 
     f = plt.figure()
 
@@ -73,7 +74,7 @@ def graph_fwhm(function_dir, output_file):
         widths, _, _, _ = scipy.signal.peak_widths(line, peaks, 0.5)
 
         fwhms.append(widths[0])
-        iters.append((i + 1) * 10)
+        iters.append((i + 1))
 
 
     plt.plot(iters, fwhms)
@@ -84,7 +85,7 @@ def graph_fwhm(function_dir, output_file):
     plt.savefig(output_file)
     plt.close()
 
-graph_fwhm("/mnt/turbo/jfeggerd/outputs_normalized/functions", "./fwhms.png")
+graph_fwhm("/mnt/turbo/jfeggerd/outputs_rolling_edge/functions", "./fwhms.png")
 
 
 
