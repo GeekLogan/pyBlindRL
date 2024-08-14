@@ -248,30 +248,30 @@ def deconvolve_cloud_rolling(x, y, z, xy_size, slices, section_size, iterations,
 
                 # output_piece = match_histograms(output_piece, img_tensor[:, (i*section_size) - overlap:((i+1) * section_size) + overlap, (j*section_size) - overlap :((j+1) * section_size) + overlap].numpy())
                 average_output[i, j, :, :, :] = output_piece
-            else:
-                output_piece = RL_deconv(img_tensor[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)], intermediate_output[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)].type(torch.cdouble), torch.from_numpy(psf_average_small).type(torch.cdouble), iterations = iterations, target_device=device)
+            # else:
+            #     output_piece = RL_deconv(img_tensor[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)], intermediate_output[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)].type(torch.cdouble), torch.from_numpy(psf_average_small).type(torch.cdouble), iterations = iterations, target_device=device)
 
-        average_output = torch.from_numpy(edge_correction(average_output, 150, 100, (64, 1200, 1200)))
+    average_output = torch.from_numpy(edge_correction(average_output, 150, 100, (64, 1200, 1200)))
 
-        normal_deconv_time = time.time()
-        print("Normal Deconvolution Time")
-        print(normal_deconv_time - psf_time)
+    normal_deconv_time = time.time()
+    print("Normal Deconvolution Time")
+    print(normal_deconv_time - psf_time)
 
-        ## Data collection for the average
-        # avg_iters.append(num + 1)
-        # output_avg_copy = np.copy(average_output.numpy())
-        # output_avg_copy = intensity_match_image(img_tensor.numpy().astype(np.uint16), output_avg_copy.astype(np.uint16))
+    ## Data collection for the average
+    # avg_iters.append(num + 1)
+    # output_avg_copy = np.copy(average_output.numpy())
+    # output_avg_copy = intensity_match_image(img_tensor.numpy().astype(np.uint16), output_avg_copy.astype(np.uint16))
 
-        # ssims_avg.append(skimage.metrics.structural_similarity(img_tensor.numpy()[32, :, :].astype(np.uint16), output_avg_copy[32, :, :].astype(np.uint16)))
-        # psnrs_avg.append(skimage.metrics.peak_signal_noise_ratio(img_tensor.numpy()[32, :, :].astype(np.uint16), output_avg_copy[32, :, :].astype(np.uint16)))
+    # ssims_avg.append(skimage.metrics.structural_similarity(img_tensor.numpy()[32, :, :].astype(np.uint16), output_avg_copy[32, :, :].astype(np.uint16)))
+    # psnrs_avg.append(skimage.metrics.peak_signal_noise_ratio(img_tensor.numpy()[32, :, :].astype(np.uint16), output_avg_copy[32, :, :].astype(np.uint16)))
 
 
-        tiff.imwrite(deconv_avg_dir + "/img_" + str((num + 1)) + ".tiff", average_output.numpy().astype(np.uint16))
+    tiff.imwrite(deconv_avg_dir + "/img_" + str((num + 1)) + ".tiff", average_output.numpy().astype(np.uint16))
 
-        ## End
+    ## End
 
-        # tiff.imwrite(imgs_dir + "/img_" + str((num + 1)) + ".tiff", img_tensor.detach().cpu().numpy())
-        # tiff.imwrite(deconv_dir + "/img_" + str((num + 1)) + ".tiff", output.numpy().astype(np.uint16))
+    # tiff.imwrite(imgs_dir + "/img_" + str((num + 1)) + ".tiff", img_tensor.detach().cpu().numpy())
+    # tiff.imwrite(deconv_dir + "/img_" + str((num + 1)) + ".tiff", output.numpy().astype(np.uint16))
 
 device = torch.device("cuda", 0)
-deconvolve_cloud_rolling(6900, 9900, 493, 1200, 64, 100, 30, device, "/mnt/turbo/jfeggerd/outputs_rolling_edge")
+deconvolve_cloud_rolling(6900, 9900, 493, 1200, 64, 1200, 15, device, "/mnt/turbo/jfeggerd/outputs_rolling_edge")
