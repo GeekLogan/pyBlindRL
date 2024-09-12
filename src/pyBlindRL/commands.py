@@ -372,9 +372,5 @@ def edge_correction(image_array, large_image_width, target_image_width, img_size
             if counts[0, i, j] != 1 and counts[0, i, j] > 0:
                 output[:, i, j] = output[:, i, j] * (1 / counts[0, i, j])
 
-                # print("here")
-                # print(i)
-                # print(j)
-
     return output
 
