@@ -177,6 +177,11 @@ def RL_deconv(image, out, otf, iterations, target_device="cpu", eps=1e-10, appro
 
         otf = torch.clone(otf).detach().to(target_device)
 
+        end_mem = torch.cuda.memory_allocated(target_device)
+
+        print("Deconvolution Memory Usage (Bytes)")
+        print(end_mem)
+
         depth, height, width = out.shape
         window = 25
         masks = [
@@ -222,14 +227,56 @@ def RL_deconv(image, out, otf, iterations, target_device="cpu", eps=1e-10, appro
 
             out *= tmp
 
+        out = torch.abs(out).cpu().numpy().astype(float)
+        return out, end_mem
+
+def RL_deconv_2D(image, out, otf, iterations, target_device="cpu", eps=1e-10):
+    """
+    Perform unblinded RL deconvolution
+
+    Parameters:
+        img (2d numpy array): Image to deconvolute
+        otf (2d numpy array): OTF to deconvolute with
+        iterations (int): number of iterations to perform
+        target_device (str): torch device to creat output on
+        eps (float): value added to prevent zero-division error
+    """
+
+    with torch.no_grad():
+
+
+        start_mem = torch.cuda.memory_allocated(target_device)
+
+        image = torch.clone(image).detach().to(target_device)
+
+        out = torch.clone(out).detach().to(target_device)
+
+        otf = torch.clone(otf).detach().to(target_device)
+
         end_mem = torch.cuda.memory_allocated(target_device)
 
         print("Deconvolution Memory Usage (Bytes)")
         print(end_mem)
 
+        for _ in range(iterations):
+            tmp = torch.fft.fftn(out)
+
+            tmp *= otf
+
+            tmp = torch.fft.ifftn(tmp)
+
+            tmp += eps  # prevent 0-division
+            tmp = image / tmp
+
+            tmp = torch.fft.fftn(tmp)
+
+            tmp *= otf.conj()
+            tmp = torch.fft.ifftn(tmp)
+
+            out *= tmp
 
         out = torch.abs(out).cpu().numpy().astype(float)
-        return out
+        return out, end_mem
 
 
 def RL_deconv_blind(gt_image, out_image, psf, iterations=20, rl_iter=10, eps=1e-9, reg_factor=0.01, target_device="cpu"):
@@ -249,11 +296,15 @@ def RL_deconv_blind(gt_image, out_image, psf, iterations=20, rl_iter=10, eps=1e-
 
     start_memory = torch.cuda.memory_allocated(target_device)
 
-    tmp_image = gt_image.to(target_device)
-
     with torch.no_grad():
+        tmp_image = gt_image.to(target_device)
         out = torch.clone(out_image).detach().to(target_device)
         out_psf = torch.clone(psf).detach().to(target_device)
+
+        end_memory = torch.cuda.memory_allocated(target_device)
+
+        print("Blinded Memory Usage (Bytes)")
+        print(end_memory)
 
         for _bld in tqdm.trange(iterations):
             out = torch.fft.fftn(out)
@@ -294,14 +345,9 @@ def RL_deconv_blind(gt_image, out_image, psf, iterations=20, rl_iter=10, eps=1e-
         oout = torch.abs(out.cpu()).numpy().astype(float)
         oout_psf = torch.abs(out_psf.cpu()).numpy().astype(float)
 
-        end_memory = torch.cuda.memory_allocated(target_device)
-
-        print("Blinded Memory Usage (Bytes)")
-        print(end_memory)
-
         del out, out_psf, tmp_image
 
-        return oout, oout_psf
+        return oout, oout_psf, end_memory
 
 #Takes in the array of overlapping image tiles and compute some average from the
 #edges of the images
@@ -374,3 +420,16 @@ def edge_correction(image_array, large_image_width, target_image_width, img_size
 
     return output
 
+def slice_blending(image_array, img_size):
+
+    blended = np.copy(image_array)
+
+    for i in range(img_size[0]):
+        if i == 0:
+            blended[i, :, :] = image_array[i, :, :] * 0.5 + image_array[i + 1, :, :] * 0.5
+        if i == img_size[0] - 1:
+            blended[i, :, :] = image_array[i, :, :] * 0.5 + image_array[i - 1, :, :] * 0.5
+        if i > 0 and i < img_size[0] - 1:
+            blended[i, :, :] = image_array[i, :, :] * 0.5 + image_array[i - 1, :, :] * 0.25 + image_array[i + 1, :, :] * 0.25
+
+    return blended
