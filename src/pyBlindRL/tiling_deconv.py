@@ -11,11 +11,21 @@ import os
 import shutil
 import matplotlib.pyplot as plt
 
+# XY Tiled Deconvolution of the entire image
+# x, y, z coordinates of image in larger image volume
+# xy_size is the size of the entire chunk of the image
+# slices is the z size of the entire image
+# section size is the tile size for the current image !!!(currently hard coded to be 100 need to change)
+# blind iterations = blind training of the psf
+# normal iterations = deconvolution with the psf learned from the blinded deconvolution
+# device = cuda device
+# output_dir = where all output images will be saved
 
 def xy_tiled_image_deconvolution(x, y, z, xy_size, slices, section_size, blind_iterations, normal_iterations, device, output_dir):
 
     start_time = time.time()
 
+    #load and setup image from the server
     vol = CloudVolume('precomputed://https://ntracer2.cai-lab.org/data2/051524_bitbow_ch0', parallel=True, progress=True)
 
     img = vol[x:x+xy_size, y:y+xy_size, z:z+slices]
@@ -35,11 +45,10 @@ def xy_tiled_image_deconvolution(x, y, z, xy_size, slices, section_size, blind_i
         clear_dir(i)
 
     img_tensor = torch.from_numpy(np.array(img).astype(np.int16))
-
     psf_guess = np.zeros(np.array(img).shape, dtype=np.complex128)
-
     psf_piece = generate_initial_psf(np.zeros((slices, section_size, section_size)))
 
+    # make a larger tiled array of PSFs to average later after training
     for i in range(int(xy_size / section_size)):
         for j in range(int(xy_size / section_size)):
             psf_guess[:, (i*section_size):((i+1) * section_size), (j*section_size):((j+1) * section_size)] = psf_piece
@@ -50,6 +59,7 @@ def xy_tiled_image_deconvolution(x, y, z, xy_size, slices, section_size, blind_i
     print("Setup Time:")
     print(setup_time - start_time)
 
+    # Blind train an individual PSF for each tile of the original image
     for i in range(int(xy_size / section_size)):
         for j in range(int(xy_size / section_size)):
             for _ in tqdm(range(int(blind_iterations))):
@@ -67,7 +77,7 @@ def xy_tiled_image_deconvolution(x, y, z, xy_size, slices, section_size, blind_i
     psf_average = np.zeros((slices, section_size, section_size))
 
 
-    ##Calculate an average psf from those already generated
+    # Calculate an average PSF from those generated across the entire image
     psf_average = np.zeros((slices, section_size, section_size), dtype=np.complex128)
 
     for i in range(int(xy_size / section_size)):
@@ -76,10 +86,13 @@ def xy_tiled_image_deconvolution(x, y, z, xy_size, slices, section_size, blind_i
 
     psf_average = psf_average / ((xy_size / section_size) **2)
 
-    psf_average = unroll_psf(psf_average)
 
+    psf_average = unroll_psf(psf_average)
     tiff.imwrite(output_functions_dir + "/img_" + str((1)) + ".tiff", clip_psf(psf_average).astype(np.uint16))
 
+    # Use a larger tile size for the middle of the image
+    # Use the smaller tile edges of the image
+    # TODO All of the tile sizes are hard coded
     psf_average_small = np.copy(psf_average)
     psf_average_large = np.zeros((slices, 150, 150))
 
@@ -87,7 +100,6 @@ def xy_tiled_image_deconvolution(x, y, z, xy_size, slices, section_size, blind_i
         psf_average_large = clip_psf(psf_average, (64, 150, 150))
         psf_average_small = clip_psf(psf_average, (64, 100, 100))
     else:
-        psf_average_large = np.zeros((slices, 150, 150))
         psf_average_large = emplace_center(psf_average_large, psf_average)
 
     psf_average_small = roll_psf(psf_average_small)
@@ -105,6 +117,8 @@ def xy_tiled_image_deconvolution(x, y, z, xy_size, slices, section_size, blind_i
     for i in range(int(xy_size / section_size)):
         for j in range(int(xy_size / section_size)):
 
+            # TODO This training size is also hard coded here
+            # If it is in the middle of the image then
             if i > 0 and i < 11 and j > 0 and j < 11:
                 output_piece, mem = RL_deconv(img_tensor[:, (i*section_size) - overlap:((i+1) * section_size) + overlap, (j*section_size) - overlap :((j+1) * section_size) + overlap], intermediate_output[:, (i*section_size) - overlap :((i+1) * section_size) + overlap, (j*section_size) - overlap :((j+1) * section_size) + overlap].type(torch.cdouble), torch.from_numpy(psf_average_large).type(torch.cdouble), iterations = normal_iterations, target_device=device)
 
