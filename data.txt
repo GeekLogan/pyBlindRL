@@ -1,4 +1,0 @@
-trial_1
- Total runtime: 566.5963354110718
-Blind: Its = 25, Memory = 50.331648 MB
-Normal: Its = 500, Memory = 50.331648 MB

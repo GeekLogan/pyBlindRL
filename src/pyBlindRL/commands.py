@@ -72,6 +72,16 @@ def generate_initial_psf(img):
 
     return out
 
+def generate_initial_psf_smaller(img, psf_shape):
+    psf = gaussian_3d(psf_shape, sigma=(1, 1, 2))
+
+    out = emplace_center(img, psf)
+    out += 1
+
+    out = roll_psf(out)
+
+    return out
+
 
 def roll_psf(img):
     """
@@ -177,10 +187,8 @@ def RL_deconv(image, out, otf, iterations, target_device="cpu", eps=1e-10, appro
 
         otf = torch.clone(otf).detach().to(target_device)
 
-        end_mem = torch.cuda.memory_allocated(target_device)
-
-        print("Deconvolution Memory Usage (Bytes)")
-        print(end_mem)
+        # print("Deconvolution Memory Usage (Bytes)")
+        end_mem = 0
 
         depth, height, width = out.shape
         window = 25
@@ -205,6 +213,7 @@ def RL_deconv(image, out, otf, iterations, target_device="cpu", eps=1e-10, appro
 
         for _ in range(iterations):
             tmp = torch.fft.fftn(out)
+            end_mem = torch.cuda.memory_allocated(target_device)
 
             if approx:
                 for mask in masks:
@@ -255,8 +264,8 @@ def RL_deconv_2D(image, out, otf, iterations, target_device="cpu", eps=1e-10):
 
         end_mem = torch.cuda.memory_allocated(target_device)
 
-        print("Deconvolution Memory Usage (Bytes)")
-        print(end_mem)
+        # print("Deconvolution Memory Usage (Bytes)")
+        # print(end_mem)
 
         for _ in range(iterations):
             tmp = torch.fft.fftn(out)
@@ -301,15 +310,15 @@ def RL_deconv_blind(gt_image, out_image, psf, iterations=20, rl_iter=10, eps=1e-
         out = torch.clone(out_image).detach().to(target_device)
         out_psf = torch.clone(psf).detach().to(target_device)
 
-        end_memory = torch.cuda.memory_allocated(target_device)
-
-        print("Blinded Memory Usage (Bytes)")
-        print(end_memory)
+        # print("Blinded Memory Usage (Bytes)")
+        # print(end_memory)
+        end_memory = 0
 
         for _bld in tqdm.trange(iterations):
             out = torch.fft.fftn(out)
             for _ in range(rl_iter):
                 tmp = torch.fft.fftn(out_psf)
+                end_memory = torch.cuda.memory_allocated(target_device)
                 tmp *= out
                 tmp = torch.fft.ifftn(tmp)
                 tmp += eps

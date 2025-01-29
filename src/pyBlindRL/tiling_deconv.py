@@ -126,17 +126,24 @@ device = torch.device("cuda", 0)
 # xy_tiled_image_deconvolution(6900, 9900, 493, 1200, 64, 100, 50, 1000, device, "/mnt/turbo/jfeggerd/outputs_rolling_edge")
 
 
-def z_tiled_image_deconvolution(x, y, z, xy_size, slices, section_size, blind_iterations, normal_iterations, device, output_dir, trial_name):
+def z_tiled_image_deconvolution(x, y, z, xy_size, slices, section_size, blind_iterations, normal_iterations, device, output_dir, trial_name, log):
 
     start_time = time.time()
 
     vol = CloudVolume('precomputed://https://ntracer2.cai-lab.org/data2/051524_bitbow_ch0', parallel=True, progress=True)
 
-    img = vol[x:x+xy_size, y:y+xy_size, z:z+slices]
+    img = np.zeros((slices, xy_size, xy_size))
 
-    img = img [:, :, :, 0]
+    #cloud volume tends to fail when downloading very large chunks at a time
+    #split it up
+    for i in range(int(slices/section_size)):
+        print(((i * section_size) + z))
+        print(((i + 1) * section_size) + z)
+        partial_img = vol[x:x+xy_size, y:y+xy_size, ((i * section_size) + z): ((i + 1) * section_size) + z]
+        partial_img = partial_img [:, :, :, 0]
+        partial_img = partial_img.transpose(2, 0, 1)
 
-    img = img.transpose(2, 0, 1)
+        img[(i * section_size):(i + 1) * section_size, :, :] = partial_img
 
     if os.path.exists(output_dir + "/" + trial_name):
         shutil.rmtree(output_dir + "/" + trial_name)
@@ -153,10 +160,9 @@ def z_tiled_image_deconvolution(x, y, z, xy_size, slices, section_size, blind_it
 
     tiff.imwrite(imgs_dir + "/img.tiff", img_tensor.numpy().astype(np.uint16))
 
-    psf_guess = generate_initial_psf(np.zeros((slices, xy_size, xy_size)))
-
-    psf_guess[:, :, :] = psf_guess[32, :, :] #just take the middle layer of the PSF guess match it for all layers
-
+    #make the PSF guess just the size of one section and
+    #train it blindly on one section of the input image
+    psf_guess = generate_initial_psf_smaller(np.zeros((section_size, xy_size, xy_size)), (section_size, section_size, section_size))
     psf_guess = torch.from_numpy(psf_guess)
 
     output = torch.clone(img_tensor)
@@ -167,11 +173,10 @@ def z_tiled_image_deconvolution(x, y, z, xy_size, slices, section_size, blind_it
 
     blind_mem = 0
 
-    for i in range(slices):
-        for _ in tqdm(range(int(blind_iterations))):
-            output_piece, psf_guess_piece, blind_mem = RL_deconv_blind(img_tensor[i, :, :].type(torch.cdouble), output[i, :, :].type(torch.cdouble), psf_guess[i, :, :].type(torch.cdouble), target_device=device, iterations=1, reg_factor=0)
-            output[i, :, :] = torch.from_numpy(output_piece)
-            psf_guess[i, :, :] = torch.from_numpy(psf_guess_piece)
+    for _ in range(int(1)):
+        output_piece, psf_guess_piece, blind_mem = RL_deconv_blind(img_tensor[0:section_size, :, :].type(torch.cdouble), output[0:section_size, :, :].type(torch.cdouble), psf_guess[0:section_size, :, :].type(torch.cdouble), target_device=device, iterations=blind_iterations, reg_factor=0)
+        output[0:section_size, :, :] = torch.from_numpy(output_piece)
+        psf_guess[0:section_size, :, :] = torch.from_numpy(psf_guess_piece)
 
     psf_time = time.time()
     print("Blinded Time")
@@ -183,30 +188,40 @@ def z_tiled_image_deconvolution(x, y, z, xy_size, slices, section_size, blind_it
 
     normal_mem = 0
 
-    for i in tqdm(range(int(slices))):
-        for it in range(normal_iterations):
-            output_piece, normal_mem = RL_deconv_2D(img_tensor[i, :, :].type(torch.cdouble), output[i, :, :].type(torch.cdouble), psf_guess[i, :, :].type(torch.cdouble), iterations = 1, target_device=device)
-            output[i, :, :] = torch.from_numpy(output_piece)
-            if (it % 10) == 0:
-                psnr = skimage.metrics.peak_signal_noise_ratio(img_tensor[i, :, :].numpy().astype(np.uint16), output[i, :, :].numpy().astype(np.uint16))
-                psnr_values[0, int(it / 10)] = it
-                psnr_values[1, int(it / 10)] = psnr
+    #For the purposes of logging the PSNR properly
+    #Iterating on each section iteration by iteration instead of the much more
+    #efficent way
+    #This way the PSNR can be logged with the same amount of deconvolution across
+    #the entire image with the same amount between the sections
+    normal_deconv_time = 0
+    log_interval = 0
+    if log :
+        log_interval = 10
+    else:
+        log_interval = normal_iterations
 
-    normal_deconv_time = time.time()
+    for it in tqdm(range(int(normal_iterations/log_interval))):
+        for i in range(int(slices / section_size)):
+            output_piece, normal_mem = RL_deconv(img_tensor[(i * section_size):((i + 1) * section_size), :, :].type(torch.cdouble), output[(i * section_size):((i + 1) * section_size), :, :].type(torch.cdouble), psf_guess[:, :, :].type(torch.cdouble), iterations = log_interval, target_device=device)
+            output[(i * section_size):((i + 1) * section_size), :, :] = torch.from_numpy(output_piece)
+
+        normal_deconv_time = time.time()
+        tiff.imwrite(deconv_dir + "/deconv_" + str(((it + 1) * 10)) + ".tiff", output.numpy().astype(np.uint16))
+        psnr = skimage.metrics.peak_signal_noise_ratio(img_tensor[:, :, :].numpy().astype(np.uint16), intensity_match_image(img_tensor[:, :, :].numpy().astype(np.uint16), output.numpy().astype(np.uint16)))
+        psnr_values[0, int(it)] = (it + 1) * 10
+        psnr_values[1, int(it)] = psnr
+
     print("Normal Deconvolution Time")
     print(normal_deconv_time - psf_time)
 
-    blended = slice_blending(output.numpy().astype(np.uint16), output.numpy().shape)
-
-    tiff.imwrite(deconv_dir + "/blended" + ".tiff", blended)
-    tiff.imwrite(deconv_dir + "/deconv" + ".tiff", output.numpy().astype(np.uint16))
-
-    f = open("data.txt", "w")
+    f = open(output_dir + "/" + trial_name + "/data.txt", "w")
 
     f.write(trial_name)
+    f.write("\nLocation: X: " + str(x) + " Y: " + str(y) + " Z: " + str(z))
+    f.write("\nRuntime includes logging: " + str(log) + "\n")
     f.write("\nTotal runtime: " + str(time.time() - start_time) + "\n")
-    f.write("Blind: Its = " + str(blind_iterations) + ", Memory = " + str(blind_mem / 1e6) + " MB\n")
-    f.write("Normal: Its = " + str(normal_iterations) + ", Memory = " + str(normal_mem / 1e6) + " MB\n")
+    f.write("Blind: Its = " + str(blind_iterations)  + ", Time = " + str(psf_time - setup_time) + ", Memory = " + str(blind_mem / 1e9) + " GB\n")
+    f.write("Normal: Its = " + str(normal_iterations) + ", Time = " + str(normal_deconv_time - psf_time) + ", Memory = " + str(normal_mem / 1e9) + " GB\n")
     f.close()
 
     plt.figure()
@@ -220,5 +235,110 @@ def z_tiled_image_deconvolution(x, y, z, xy_size, slices, section_size, blind_it
 
 device = torch.device("cuda", 0)
 
-z_tiled_image_deconvolution(7000, 10000, 493, 1000, 64, 64, 25, 500, device, "/mnt/turbo/jfeggerd/outputs_z_tiled", "trial_1")
+# z_tiled_image_deconvolution(11000, 12000, 493, 2000, 100, 50, 25, 100, device, "/mnt/turbo/jfeggerd/outputs_z_tiled", "trial_15", False)
 
+
+
+def h5_input_deconv(section_size, blind_iterations, normal_iterations, device, output_dir, trial_name, log):
+    import h5py
+
+    start_time = time.time()
+    f = h5py.File('/data/jfeggerd/coord_0,0_-23.600,+13.904_ch2.1X.h5', 'r')
+    dataset = f['data']
+
+    img = np.array(dataset[:,:,:40])
+
+    img = img.transpose((2, 0, 1))
+
+    xy_size = img.shape[1]
+    slices = img.shape[0]
+
+    deconv_dir = output_dir + "/" + trial_name +  "/deconv"
+    imgs_dir = output_dir + "/" + trial_name + "/imgs"
+
+    if not os.path.isdir(output_dir + "/" + trial_name):
+        os.mkdir(output_dir + "/" + trial_name)
+        os.mkdir(deconv_dir)
+        os.mkdir(imgs_dir)
+
+
+    img_tensor = torch.from_numpy(np.array(img).astype(np.int16))
+
+    tiff.imwrite(imgs_dir + "/img.tiff", img_tensor.numpy().astype(np.uint16))
+
+    #make the PSF guess just the size of one section and
+    #train it blindly on one section of the input image
+    psf_guess = generate_initial_psf_smaller(np.zeros((section_size, xy_size, xy_size)), (section_size, section_size, section_size))
+    psf_guess = torch.from_numpy(psf_guess)
+
+    output = torch.clone(img_tensor)
+
+    setup_time = time.time()
+    print(torch.cuda.memory_allocated(device))
+    print("Setup Time:")
+    print(setup_time - start_time)
+
+    blind_mem = 0
+
+    for _ in range(int(1)):
+        output_piece, psf_guess_piece, blind_mem = RL_deconv_blind(img_tensor[0:section_size, :, :].type(torch.cdouble), output[0:section_size, :, :].type(torch.cdouble), psf_guess[0:section_size, :, :].type(torch.cdouble), target_device=device, iterations=blind_iterations, reg_factor=0)
+        output[0:section_size, :, :] = torch.from_numpy(output_piece)
+        psf_guess[0:section_size, :, :] = torch.from_numpy(psf_guess_piece)
+
+    psf_time = time.time()
+    print("Blinded Time")
+    print(psf_time - setup_time)
+
+    tiff.imwrite(deconv_dir + "/psf" + ".tiff", unroll_psf(psf_guess.numpy().astype(np.uint16)))
+
+    output = torch.clone(img_tensor)
+
+    psnr_values = np.zeros((2, int(normal_iterations/10)))
+
+    normal_mem = 0
+
+    #For the purposes of logging the PSNR properly
+    #Iterating on each section iteration by iteration instead of the much more
+    #efficent way
+    #This way the PSNR can be logged with the same amount of deconvolution across
+    #the entire image with the same amount between the sections
+    normal_deconv_time = 0
+    log_interval = 0
+    if log :
+        log_interval = 10
+    else:
+        log_interval = normal_iterations
+
+    for it in tqdm(range(int(normal_iterations/log_interval))):
+        for i in range(int(slices / section_size)):
+            output_piece, normal_mem = RL_deconv(img_tensor[(i * section_size):((i + 1) * section_size), :, :].type(torch.cdouble), output[(i * section_size):((i + 1) * section_size), :, :].type(torch.cdouble), psf_guess[:, :, :].type(torch.cdouble), iterations = log_interval, target_device=device)
+            output[(i * section_size):((i + 1) * section_size), :, :] = torch.from_numpy(output_piece)
+
+        normal_deconv_time = time.time()
+        tiff.imwrite(deconv_dir + "/deconv_" + str(((it + 1) * 10)) + ".tiff", output.numpy().astype(np.uint16))
+        psnr = skimage.metrics.peak_signal_noise_ratio(img_tensor[:, :, :].numpy().astype(np.uint16), intensity_match_image(img_tensor[:, :, :].numpy().astype(np.uint16), output.numpy().astype(np.uint16)))
+        psnr_values[0, int(it)] = (it + 1) * 10
+        psnr_values[1, int(it)] = psnr
+
+    print("Normal Deconvolution Time")
+    print(normal_deconv_time - psf_time)
+
+    f = open(output_dir + "/" + trial_name + "/data.txt", "w")
+
+    f.write(trial_name)
+    # f.write("\nLocation: X: " + str(x) + " Y: " + str(y) + " Z: " + str(z))
+    f.write("\nRuntime includes logging: " + str(log) + "\n")
+    f.write("\nTotal runtime: " + str(time.time() - start_time) + "\n")
+    f.write("Blind: Its = " + str(blind_iterations)  + ", Time = " + str(psf_time - setup_time) + ", Memory = " + str(blind_mem / 1e9) + " GB\n")
+    f.write("Normal: Its = " + str(normal_iterations) + ", Time = " + str(normal_deconv_time - psf_time) + ", Memory = " + str(normal_mem / 1e9) + " GB\n")
+    f.close()
+
+    plt.figure()
+    plt.plot(psnr_values[0, :], psnr_values[1, :])
+
+    plt.ylabel("PSNR Score")
+    plt.xlabel("Normal Deconvolution Iterations")
+    plt.savefig(output_dir + "/" + trial_name + "/psnr.png")
+    plt.close()
+
+h5_input_deconv(40, 1, 100, device, "/mnt/turbo/jfeggerd/outputs_z_tiled", "trial_21", True)
