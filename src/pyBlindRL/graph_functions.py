@@ -1,20 +1,22 @@
 import scipy.signal
-from commands import generate_initial_psf, RL_deconv_blind, unroll_psf, clip_psf, normalize_psf
-from utility import clear_dir
+from commands import normalize_psf
 import scipy
-import cv2
 import matplotlib.pyplot as plt
 import time
 import tifffile as tiff
-import torch
-import os
-from cloudvolume import CloudVolume
-import random
 from tqdm import tqdm
 import numpy as np
 import glob
 
-def graph_functions(function_dir, output_file):
+def graph_psf_functions(function_dir, output_file):
+    """
+    Gather all psf function images and graph them for comparison
+
+    Parameters:
+        function_dir (str): directory containing PSF function imgs
+        output_file (str): path of the output img
+    """
+
     files = glob.glob(function_dir + "/*.tiff")
     files.sort()
 
@@ -49,6 +51,15 @@ def graph_functions(function_dir, output_file):
 
 
 def graph_fwhm(function_dir, output_file):
+    """
+    Graph the full width half maximum of all psf functions from
+    the given directory
+
+    Parameters:
+        function_dir (str): directory containing PSF function imgs
+        output_file (str): path of the output img
+    """
+
     files = glob.glob(function_dir + "/*.tiff")
     files.sort()
 
@@ -84,8 +95,6 @@ def graph_fwhm(function_dir, output_file):
 
     plt.savefig(output_file)
     plt.close()
-
-graph_fwhm("/mnt/turbo/jfeggerd/outputs_rolling_edge/functions", "./fwhms.png")
 
 
 

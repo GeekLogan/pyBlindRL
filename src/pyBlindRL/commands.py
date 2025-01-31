@@ -358,12 +358,18 @@ def RL_deconv_blind(gt_image, out_image, psf, iterations=20, rl_iter=10, eps=1e-
 
         return oout, oout_psf, end_memory
 
-#Takes in the array of overlapping image tiles and compute some average from the
-#edges of the images
-
-## Just do the deconvolution with tiles sizes of ~150 x 150 then use a weighted averaging to
-#hopefully remove the edge effects
 def edge_correction(image_array, large_image_width, target_image_width, img_size):
+    """
+    Use a gradient to blend the overlap edges of the image together (XY plane).
+    Takes the average of all points of overlap between tiles and produces one
+    final image.
+
+    Parameters:
+        image_array (3d tensor): Tiles to be blended together
+        large_image_width (int): The size of the large tiles with overlap
+        target_image_width (int): What size the final tiles should be
+        img_size (int): Size of the final output image after blending
+    """
 
     overlap = int((large_image_width - target_image_width) / 2)
 
@@ -430,6 +436,13 @@ def edge_correction(image_array, large_image_width, target_image_width, img_size
     return output
 
 def slice_blending(image_array, img_size):
+    """
+    Use a gradient to blend stacks of slice together (Z dimension)
+
+    Parameters:
+        image_array (3d tensor): Slices to be blended
+        img_size (int): Size of the final output image after blending
+    """
 
     blended = np.copy(image_array)
 

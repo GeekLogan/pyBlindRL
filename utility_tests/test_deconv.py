@@ -1,5 +1,5 @@
 import torch
-from tiling_deconv import xy_tiled_image_deconvolution, z_tiled_image_deconvolution, h5_input_deconv
+from src.pyBlindRL.tiling_deconv import xy_tiled_image_deconvolution, z_tiled_image_deconvolution, h5_input_deconv
 
 
 device = torch.device("cuda", 0)

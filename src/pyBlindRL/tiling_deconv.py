@@ -1,5 +1,4 @@
 from commands import *
-from utility import clear_dir
 import skimage.metrics
 import time
 import tifffile as tiff
@@ -127,6 +126,22 @@ def xy_tiled_image_deconvolution(x, y, z, xy_size, slices, section_size, overlap
 
 
 def z_tiled_image_deconvolution(x, y, z, xy_size, slices, section_size, blind_iterations, normal_iterations, device, output_dir, trial_name, log):
+    """
+    Perform Z Tiled Deconvolution of image
+    Deconvolve the image in stacks in the Z dimension
+
+    Parameters:
+        x, y, z (int): position upper-left corner of frame on whole image
+        xy_size (int): width and height of input image
+        slices (int): z depth of image
+        section_size (int): size of tiles to calculate on
+        blind iterations (int): number of blinded iterations to train PSF
+        normal iterations (int): number of unblinded iterations performed on each tile
+        device (torch device): device tiles are sent to for deconvolution
+        output_dir (str): filepath to create trial dir in
+        trial_name (str): name of trial
+        log (bool): save many images during training to log the progression of deconvolution (much much slower)
+    """
 
     start_time = time.time()
 
@@ -234,6 +249,23 @@ def z_tiled_image_deconvolution(x, y, z, xy_size, slices, section_size, blind_it
 
 
 def h5_input_deconv(section_size, blind_iterations, normal_iterations, device, output_dir, trial_name, log):
+    """
+    Perform Z Tiled Deconvolution of image that is an h5 input file instead of cloud volume
+    Deconvolve the image in stacks in the Z dimension
+
+    Parameters:
+        x, y, z (int): position upper-left corner of frame on whole image
+        xy_size (int): width and height of input image
+        slices (int): z depth of image
+        section_size (int): size of tiles to calculate on
+        blind iterations (int): number of blinded iterations to train PSF
+        normal iterations (int): number of unblinded iterations performed on each tile
+        device (torch device): device tiles are sent to for deconvolution
+        output_dir (str): filepath to create trial dir in
+        trial_name (str): name of trial
+        log (bool): save many images during training to log the progression of deconvolution (much much slower)
+    """
+
     import h5py
 
     start_time = time.time()

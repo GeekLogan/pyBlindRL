@@ -1,5 +1,5 @@
-from commands import *
-from utility import clear_dir
+from src.pyBlindRL.commands import *
+from src.pyBlindRL.utility import clear_dir
 import scipy
 import skimage.metrics
 import cv2
