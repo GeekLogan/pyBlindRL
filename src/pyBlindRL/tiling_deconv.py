@@ -11,18 +11,24 @@ import os
 import shutil
 import matplotlib.pyplot as plt
 
-# XY Tiled Deconvolution of the entire image
-# x, y, z coordinates of image in larger image volume
-# xy_size is the size of the entire chunk of the image
-# slices is the z size of the entire image
-# section size is the tile size for the current image !!!(currently hard coded to be 100 need to change)
-# overlap is the amount of pixel overlapping on the edges of the normal deconvolution
-# blind iterations = blind training of the psf
-# normal iterations = deconvolution with the psf learned from the blinded deconvolution
-# device = cuda device
-# output_dir = where all output images will be saved
 
 def xy_tiled_image_deconvolution(x, y, z, xy_size, slices, section_size, overlap, blind_iterations, normal_iterations, device, output_dir, trial_name):
+    """
+    Perform XY Tiled Deconvolution of image with blending
+    The border tiles will not be inlucded in the output image
+
+    Parameters:
+        x, y, z (int): position upper-left corner of frame on whole image
+        xy_size (int): width and height of input image
+        slices (int): z depth of image
+        section_size (int): size of tiles to calculate on
+        overlap (int): amount of pixel overlapping on the edges of tiles for blending
+        blind iterations (int): number of blinded iterations to train PSF
+        normal iterations (int): number of unblinded iterations performed on each tile
+        device (cuda device): device tiles are sent to for deconvolution
+        output_dir (str): filepath to create trial dir in
+        trial_name (str): name of trial
+    """
 
     start_time = time.time()
 
